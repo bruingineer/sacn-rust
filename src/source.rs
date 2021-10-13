@@ -14,7 +14,7 @@
 // of each public item without relying on referring to private items.
 //
 
-use error::errors::{*};
+use error::errors::*;
 use packet::*;
 
 use std::cell::RefCell;
@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::cmp;
 use std::cmp::min;
 use std::time::{Duration, Instant};
-use std::thread::{JoinHandle};
+use std::thread::JoinHandle;
 use std::thread;
 use std::sync::{Arc, MutexGuard, Mutex};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
