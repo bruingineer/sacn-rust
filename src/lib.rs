@@ -220,3 +220,6 @@ pub mod source;
 
 /// The receive module handles the receiving of sACN on the network.
 pub mod receive;
+
+/// The sacn_network_receiver module handles the lower level transport layer and wraps a Socket.
+pub mod sacn_network_receiver;
