@@ -43,6 +43,10 @@ jobs:
     - name: Build
       run: cargo build --verbose
 
+    - name: List Network Adapters
+      run: Get-NetAdapter | Format-List Name, InterfaceAlias, InterfaceIndex, Status
+      shell: powershell
+
     - name: Configure test network interfaces
       shell: powershell
       run: |
