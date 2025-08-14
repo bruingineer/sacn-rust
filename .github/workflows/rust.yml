@@ -50,10 +50,10 @@ jobs:
     - name: Configure test network interfaces
       shell: powershell
       run: |
-        New-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress "192.168.0.6" -PrefixLength 24
-        New-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress "192.168.0.7" -PrefixLength 24
-        New-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress "192.168.0.8" -PrefixLength 24
-        
+        New-NetIPAddress -InterfaceAlias "Ethernet 4" -IPAddress "192.168.0.6" -PrefixLength 24
+        New-NetIPAddress -InterfaceAlias "Ethernet 4" -IPAddress "192.168.0.7" -PrefixLength 24
+        New-NetIPAddress -InterfaceAlias "Ethernet 4" -IPAddress "192.168.0.8" -PrefixLength 24
+
     - name: Run unit tests
       run: cargo test --lib --verbose --no-run
       
