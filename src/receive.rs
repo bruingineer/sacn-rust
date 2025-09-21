@@ -1213,7 +1213,7 @@ impl SacnNetworkReceiver {
         &mut self,
         buf: &'a mut [u8; RCV_BUF_DEFAULT_SIZE],
     ) -> Result<AcnRootLayerProtocol<'a>> {
-        self.socket.read_exact(buf)?;
+        self.socket.read(buf)?;
 
         Ok(AcnRootLayerProtocol::parse(buf)?)
     }
