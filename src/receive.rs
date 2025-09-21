@@ -765,6 +765,7 @@ impl SacnReceiver {
         // Preview data and stream terminated both get precedence over checking the sequence number.
         // This is as per ANSI E1.31-2018 Section 6.2.6, Stream_Terminated: Bit 6, 'Any property values
         // in an E1.31 Data Packet containing this bit shall be ignored'
+        println!("seq: {}, un: {}, data: {:?}", data_pkt.sequence_number, data_pkt.universe, data_pkt.data.property_values);
 
         self.sequences.check_data_seq_number(
             self.source_limit,
