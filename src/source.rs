@@ -1194,7 +1194,7 @@ impl SacnSourceInternal {
     fn set_name(&mut self, name: &str) -> Result<()> {
         if name.len() > E131_SOURCE_NAME_FIELD_LENGTH {
             return Err(SacnError::MalformedSourceName(
-                "Source name provided is longer than maximum allowed".to_string()
+                "Source name provided is longer than maximum allowed".to_string(),
             ));
         }
         self.name = name.to_string();

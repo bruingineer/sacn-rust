@@ -1136,7 +1136,8 @@ impl Pdu for SynchronizationPacketFramingLayer {
                 ..E131_SYNC_FRAMING_LAYER_RESERVE_FIELD_INDEX],
         );
 
-        if !(E131_MIN_MULTICAST_UNIVERSE..=E131_MAX_MULTICAST_UNIVERSE).contains(&synchronization_address)
+        if !(E131_MIN_MULTICAST_UNIVERSE..=E131_MAX_MULTICAST_UNIVERSE)
+            .contains(&synchronization_address)
         {
             return Err(SacnError::SacnParsePackError(
                 ParsePacketError::ParseInvalidSyncAddr(synchronization_address),
@@ -1156,8 +1157,8 @@ impl Pdu for SynchronizationPacketFramingLayer {
         if buf.len() < self.len() {
             return Err(SacnError::SacnParsePackError(
                 ParsePacketError::PackBufferInsufficient(
-                    "SynchronizationPacketFramingLayer pack buffer length insufficient".to_string()
-                )
+                    "SynchronizationPacketFramingLayer pack buffer length insufficient".to_string(),
+                ),
             ));
         }
 

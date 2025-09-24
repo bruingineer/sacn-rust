@@ -1112,19 +1112,13 @@ impl SacnNetworkReceiver {
     /// Will return an Io error if cannot join the universes corresponding multicast group address.
     ///
     fn listen_multicast_universe(&self, universe: u16) -> Result<()> {
-        let multicast_addr =
-
-        if self.addr.is_ipv4() {
-            multicast_addr = universe_to_ipv4_multicast_addr(universe)? // "Failed to convert universe to IPv4 multicast addr"
+        let multicast_addr = if self.addr.is_ipv4() {
+            universe_to_ipv4_multicast_addr(universe)? // "Failed to convert universe to IPv4 multicast addr"
         } else {
-            multicast_addr = universe_to_ipv6_multicast_addr(universe)? // "Failed to convert universe to IPv6 multicast addr"
+            universe_to_ipv6_multicast_addr(universe)? // "Failed to convert universe to IPv6 multicast addr"
         };
 
-        join_win_multicast(
-            &self.socket,
-            multicast_addr,
-            self.addr.ip(),
-        )
+        join_win_multicast(&self.socket, multicast_addr, self.addr.ip())
     }
 
     /// Removes this SacnNetworkReceiver from the multicast group which corresponds to the given universe.
@@ -1134,12 +1128,10 @@ impl SacnNetworkReceiver {
     /// IPv4 or IPv6 address. See packet::universe_to_ipv4_multicast_addr and packet::universe_to_ipv6_multicast_addr.
     ///
     fn mute_multicast_universe(&mut self, universe: u16) -> Result<()> {
-        let multicast_addr= 
-
-        if self.addr.is_ipv4() {
-            multicast_addr = universe_to_ipv4_multicast_addr(universe)? // "Failed to convert universe to IPv4 multicast addr"
+        let multicast_addr = if self.addr.is_ipv4() {
+            universe_to_ipv4_multicast_addr(universe)? // "Failed to convert universe to IPv4 multicast addr"
         } else {
-            multicast_addr = universe_to_ipv6_multicast_addr(universe)? // "Failed to convert universe to IPv6 multicast addr"
+            universe_to_ipv6_multicast_addr(universe)? // "Failed to convert universe to IPv6 multicast addr"
         };
 
         leave_win_multicast(&self.socket, multicast_addr)
