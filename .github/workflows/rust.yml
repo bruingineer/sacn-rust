@@ -24,14 +24,14 @@ jobs:
         sudo ip addr add 192.168.0.7/24 dev eth0
         sudo ip addr add 192.168.0.8/24 dev eth0
         sudo ip link set dev lo up
-    - name: Run tests
-      run: cargo test --lib --verbose --no-run
+    # - name: Run tests
+    #   run: cargo test --lib --verbose --no-run
     - name: Run integration tests
-      run: cargo test --test "*" --verbose -- --nocapture --test-threads=1
+      run: cargo test --verbose -- --include-ignored --nocapture --test-threads=1 --no-fail-fast
     - name: Run doc tests
       run: cargo test --doc --verbose
-    - name: Run ignored tests
-      run: cargo test --verbose -- --ignored --test-threads=1
+    # - name: Run ignored tests
+    #   run: cargo test --verbose -- --ignored --test-threads=1 --no-fail-fast
 
   test-windows:
 
@@ -39,30 +39,22 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-
     - name: Build
       run: cargo build --verbose
-
     - name: List Network Adapters
-      run: Get-NetAdapter | Format-List Name, InterfaceAlias, InterfaceIndex, Status
+      run: Get-NetAdapter | Format-List Name, InterfaceIndex, Status
       shell: powershell
-
+    - name: Store Ethernet Adapters
+      shell: powershell
+      run: $eth = Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1
     - name: Configure test network interfaces
       shell: powershell
       run: |
-        New-NetIPAddress -InterfaceAlias "Ethernet 4" -IPAddress "192.168.0.6" -PrefixLength 24
-        New-NetIPAddress -InterfaceAlias "Ethernet 4" -IPAddress "192.168.0.7" -PrefixLength 24
-        New-NetIPAddress -InterfaceAlias "Ethernet 4" -IPAddress "192.168.0.8" -PrefixLength 24
+        New-NetIPAddress -InterfaceAlias $eth.Name -IPAddress "192.168.0.6" -PrefixLength 24
+        New-NetIPAddress -InterfaceAlias $eth.Name -IPAddress "192.168.0.7" -PrefixLength 24
+        New-NetIPAddress -InterfaceAlias $eth.Name -IPAddress "192.168.0.8" -PrefixLength 24
 
-    - name: Run unit tests
-      run: cargo test --lib --verbose --no-run
-      
     - name: Run integration tests
-      run: cargo test --test "*" --verbose -- --nocapture --test-threads=1
-      
+      run: cargo test --verbose -- --include-ignored --nocapture --test-threads=1 --no-fail-fast
     - name: Run doc tests
       run: cargo test --doc --verbose
-      
-    - name: Run ignored tests
-      run: cargo test --verbose -- --ignored --test-threads=1
-
