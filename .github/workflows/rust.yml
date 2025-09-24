@@ -27,11 +27,11 @@ jobs:
     # - name: Run tests
     #   run: cargo test --lib --verbose --no-run
     - name: Run integration tests
-      run: cargo test --verbose -- --include-ignored --nocapture --test-threads=1
+      run: cargo test --test "*" --verbose -- --nocapture --test-threads=1
     - name: Run doc tests
       run: cargo test --doc --verbose
-    # - name: Run ignored tests
-    #   run: cargo test --verbose -- --ignored --test-threads=1 --no-fail-fast
+    - name: Run ignored tests
+      run: cargo test --verbose -- --ignored --test-threads=1 --nocapture
 
   test-windows:
 
@@ -44,12 +44,12 @@ jobs:
     - name: Configure test network interfaces
       shell: powershell
       run: |
-        Get-NetAdapter | Format-List Name, InterfaceIndex, Status
-        $eth = Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1
-        New-NetIPAddress -InterfaceAlias $eth.Name -IPAddress "192.168.0.6" -PrefixLength 24
-        New-NetIPAddress -InterfaceAlias $eth.Name -IPAddress "192.168.0.7" -PrefixLength 24
-        New-NetIPAddress -InterfaceAlias $eth.Name -IPAddress "192.168.0.8" -PrefixLength 24
+        New-NetIPAddress -InterfaceAlias (Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1).Name -IPAddress "192.168.0.6" -PrefixLength 24
+        New-NetIPAddress -InterfaceAlias (Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1).Name -IPAddress "192.168.0.7" -PrefixLength 24
+        New-NetIPAddress -InterfaceAlias (Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1).Name -IPAddress "192.168.0.8" -PrefixLength 24
     - name: Run integration tests
-      run: cargo test --verbose -- --include-ignored --nocapture --test-threads=1
+      run: cargo test --test "*" --verbose -- --nocapture --test-threads=1
     - name: Run doc tests
       run: cargo test --doc --verbose
+    - name: Run ignored tests
+      run: cargo test --verbose -- --ignored --test-threads=1 --nocapture
