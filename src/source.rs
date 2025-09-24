@@ -34,7 +34,7 @@ use socket2::{Domain, Socket, Type};
 use uuid::Uuid;
 
 /// The name of the thread which runs periodically to perform various actions such as universe discovery adverts for the source.
-const SND_UPDATE_THREAD_NAME: &'static str = "rust_sacn_snd_update_thread";
+const SND_UPDATE_THREAD_NAME: &str = "rust_sacn_snd_update_thread";
 
 /// The default startcode used to send stream termination packets when the SacnSource is closed.
 const DEFAULT_TERMINATE_START_CODE: u8 = 0;
@@ -610,9 +610,9 @@ impl SacnSourceInternal {
         socket.bind(&ip.into())?;
 
         let ds = SacnSourceInternal {
-            socket: socket,
+            socket,
             addr: ip,
-            cid: cid,
+            cid,
             name: name.to_string(),
             preview_data: false,
             data_sequences: RefCell::new(HashMap::new()),
@@ -1144,8 +1144,8 @@ impl SacnSourceInternal {
                     UniverseDiscoveryPacketFramingLayer {
                         source_name: self.name.as_str().into(),
                         data: UniverseDiscoveryPacketUniverseDiscoveryLayer {
-                            page: page,
-                            last_page: last_page,
+                            page,
+                            last_page,
                             universes: universes.into(),
                         },
                     },

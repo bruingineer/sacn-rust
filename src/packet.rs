@@ -1373,7 +1373,7 @@ macro_rules! impl_universe_discovery_packet_universe_discovery_layer {
                 Ok(UniverseDiscoveryPacketUniverseDiscoveryLayer {
                     page,
                     last_page,
-                    universes: universes,
+                    universes,
                 })
             }
 
