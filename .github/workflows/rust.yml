@@ -27,7 +27,7 @@ jobs:
     # - name: Run tests
     #   run: cargo test --lib --verbose --no-run
     - name: Run integration tests
-      run: cargo test --verbose -- --include-ignored --nocapture --test-threads=1 --no-fail-fast
+      run: cargo test --verbose -- --include-ignored --nocapture --test-threads=1
     - name: Run doc tests
       run: cargo test --doc --verbose
     # - name: Run ignored tests
@@ -41,20 +41,15 @@ jobs:
     - uses: actions/checkout@v4
     - name: Build
       run: cargo build --verbose
-    - name: List Network Adapters
-      run: Get-NetAdapter | Format-List Name, InterfaceIndex, Status
-      shell: powershell
-    - name: Store Ethernet Adapters
-      shell: powershell
-      run: $eth = Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1
     - name: Configure test network interfaces
       shell: powershell
       run: |
+        Get-NetAdapter | Format-List Name, InterfaceIndex, Status
+        $eth = Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1
         New-NetIPAddress -InterfaceAlias $eth.Name -IPAddress "192.168.0.6" -PrefixLength 24
         New-NetIPAddress -InterfaceAlias $eth.Name -IPAddress "192.168.0.7" -PrefixLength 24
         New-NetIPAddress -InterfaceAlias $eth.Name -IPAddress "192.168.0.8" -PrefixLength 24
-
     - name: Run integration tests
-      run: cargo test --verbose -- --include-ignored --nocapture --test-threads=1 --no-fail-fast
+      run: cargo test --verbose -- --include-ignored --nocapture --test-threads=1
     - name: Run doc tests
       run: cargo test --doc --verbose
