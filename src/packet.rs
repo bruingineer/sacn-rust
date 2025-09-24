@@ -427,7 +427,7 @@ macro_rules! impl_acn_root_layer_protocol {
 
         impl$( $lt )* AcnRootLayerProtocol$( $lt )* {
             /// Parse the packet from the given buffer.
-            pub fn parse(buf: &[u8]) -> Result<AcnRootLayerProtocol> {
+            pub fn parse(buf: &[u8]) -> Result<AcnRootLayerProtocol<'_>> {
                 if buf.len() <  (E131_PREAMBLE_SIZE as usize) {
                     return Err(SacnError::SacnParsePackError(
                         ParsePacketError::ParseInsufficientData(

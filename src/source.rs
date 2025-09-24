@@ -1294,7 +1294,7 @@ impl SacnSourceInternal {
 ///
 fn unlock_internal(
     internal: &Arc<Mutex<SacnSourceInternal>>,
-) -> Result<MutexGuard<SacnSourceInternal>> {
+) -> Result<MutexGuard<'_, SacnSourceInternal>> {
     match internal.lock() {
         Err(_) => {
             // The PoisonError returned doesn't contain further information and just allows access to the internal potentially inconsistent sender which
@@ -1322,7 +1322,7 @@ fn unlock_internal(
 ///
 fn unlock_internal_mut(
     internal: &mut Arc<Mutex<SacnSourceInternal>>,
-) -> Result<MutexGuard<SacnSourceInternal>> {
+) -> Result<MutexGuard<'_, SacnSourceInternal>> {
     match internal.lock() {
         Err(_) => {
             // The PoisonError returned doesn't contain further information and just allows access to the internal potentially inconsistent sender which
