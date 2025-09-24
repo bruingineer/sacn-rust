@@ -582,9 +582,9 @@ impl SacnReceiver {
                         // To stop recv blocking forever with a non-None timeout due to packets being received consistently (that reset the timeout)
                         // within the receive timeout (e.g. universe discovery packets if the discovery interval < timeout) the timeout needs to be
                         // adjusted to account for the time already taken.
-                        if timeout.is_some() {
+                        if let Some(timeout) = timeout {
                             let elapsed = start_time.elapsed();
-                            match timeout.unwrap().checked_sub(elapsed) {
+                            match timeout.checked_sub(elapsed) {
                                 None => {
                                     // Indicates that elapsed is bigger than timeout so its time to return.
                                     Err(std::io::Error::new(
@@ -608,9 +608,10 @@ impl SacnReceiver {
                         match s.kind() {
                             // Windows and Unix use different error types (WouldBlock/TimedOut) for the same error.
                             std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => {
-                                if timeout.is_some() {
+
+                                if let Some(timeout) = timeout {
                                     let elapsed = start_time.elapsed();
-                                    match timeout.unwrap().checked_sub(elapsed) {
+                                    match timeout.checked_sub(elapsed) {
                                         None => {
                                             // Indicates that elapsed is bigger than timeout so its time to return.
                                             if cfg!(target_os = "windows") {
@@ -1929,7 +1930,7 @@ fn check_seq_number(
         E131_NETWORK_DATA_LOSS_TIMEOUT,
         announce_timeout,
     )?;
-    if let None = src_sequences.get(&cid) {
+    if src_sequences.get(&cid).is_none() {
         // New source not previously received from.
         if source_limit.is_none() || src_sequences.len() < source_limit.unwrap() {
             src_sequences.insert(cid, HashMap::new());
@@ -2161,12 +2162,16 @@ pub fn htp_dmx_merge(i: &DMXData, n: &DMXData) -> Result<DMXData> {
     let mut n_val = n_iter.next();
 
     while (i_val.is_some()) || (n_val.is_some()) {
-        if i_val.is_none() {
-            r.values.push(*n_val.unwrap());
-        } else if n_val.is_none() {
-            r.values.push(*i_val.unwrap());
-        } else {
-            r.values.push(max(*n_val.unwrap(), *i_val.unwrap()));
+        if let (Some(&i), Some(&n)) = (i_val, n_val) {
+            r.values.push(max(i, n));
+        } else if let Some(&i) = i_val
+            && n_val.is_none()
+        {
+            r.values.push(i);
+        } else if let Some(&n) = n_val
+            && i_val.is_none()
+        {
+            r.values.push(n);
         }
 
         i_val = i_iter.next();
