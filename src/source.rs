@@ -214,7 +214,7 @@ impl SacnSource {
                     thread::sleep(DEFAULT_POLL_PERIOD);
                     match perform_periodic_update(&mut trd_src) {
                         Err(e) => {
-                            println!("Periodic error: {:?}", e);
+                            println!("Periodic error: {e:?}");
                         }
 
                         _ => {
@@ -665,7 +665,7 @@ impl SacnSourceInternal {
     fn register_universe(&mut self, universe: u16) -> Result<()> {
         is_universe_in_range(universe)?;
 
-        if self.universes.len() == 0 {
+        if self.universes.is_empty() {
             self.universes.push(universe);
         } else {
             match self.universes.binary_search(&universe) {
@@ -766,14 +766,14 @@ impl SacnSourceInternal {
         dst_ip: Option<SocketAddr>,
         synchronisation_addr: Option<u16>,
     ) -> Result<()> {
-        if self.running == false {
+        if !self.running {
             // Indicates that this sender has been terminated.
             return Err(SacnError::SenderAlreadyTerminated(
                 "Attempted to send".to_string(),
             ));
         }
 
-        if data.len() == 0 {
+        if data.is_empty() {
             return Err(SacnError::DataArrayEmpty());
         }
 
@@ -888,13 +888,11 @@ impl SacnSourceInternal {
                     std::io::Error::new(e.kind(), "Failed to send data unicast on socket")
                 })?;
         } else {
-            let dst;
-
-            if self.addr.is_ipv6() {
-                dst = universe_to_ipv6_multicast_addr(universe)?;
+            let dst = if self.addr.is_ipv6() {
+                universe_to_ipv6_multicast_addr(universe)?
             } else {
-                dst = universe_to_ipv4_multicast_addr(universe)?;
-            }
+                universe_to_ipv4_multicast_addr(universe)?
+            };
 
             self.socket
                 .send_to(&packet.pack_alloc().unwrap(), &dst)
@@ -1155,12 +1153,11 @@ impl SacnSourceInternal {
             },
         };
 
-        let ip;
-        if self.addr.is_ipv6() {
-            ip = universe_to_ipv6_multicast_addr(E131_DISCOVERY_UNIVERSE)?;
+        let ip = if self.addr.is_ipv6() {
+            universe_to_ipv6_multicast_addr(E131_DISCOVERY_UNIVERSE)?
         } else {
-            ip = universe_to_ipv4_multicast_addr(E131_DISCOVERY_UNIVERSE)?;
-        }
+            universe_to_ipv4_multicast_addr(E131_DISCOVERY_UNIVERSE)?
+        };
 
         self.socket.send_to(&packet.pack_alloc()?, &ip)?;
 

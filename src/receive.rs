@@ -310,7 +310,7 @@ impl SacnReceiver {
             merge_func: DEFAULT_MERGE_FUNC,
             partially_discovered_sources: Vec::new(),
             process_preview_data: PROCESS_PREVIEW_DATA_DEFAULT,
-            source_limit: source_limit,
+            source_limit,
             sequences: SequenceNumbering::new(),
             announce_source_discovery: ANNOUNCE_SOURCE_DISCOVERY_DEFAULT,
             announce_stream_termination: ANNOUNCE_STREAM_TERMINATION_DEFAULT,
@@ -584,7 +584,7 @@ impl SacnReceiver {
                         // To stop recv blocking forever with a non-None timeout due to packets being received consistently (that reset the timeout)
                         // within the receive timeout (e.g. universe discovery packets if the discovery interval < timeout) the timeout needs to be
                         // adjusted to account for the time already taken.
-                        if !timeout.is_none() {
+                        if timeout.is_some() {
                             let elapsed = start_time.elapsed();
                             match timeout.unwrap().checked_sub(elapsed) {
                                 None => {
@@ -595,7 +595,7 @@ impl SacnReceiver {
                                     )
                                     .into());
                                 }
-                                Some(new_timeout) => return self.recv(Some(new_timeout)),
+                                Some(new_timeout) => self.recv(Some(new_timeout)),
                             }
                         } else {
                             // If the timeout was none then would keep looping till data is returned as the method should keep blocking till then.
@@ -610,7 +610,7 @@ impl SacnReceiver {
                         match s.kind() {
                             // Windows and Unix use different error types (WouldBlock/TimedOut) for the same error.
                             std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => {
-                                if !timeout.is_none() {
+                                if timeout.is_some() {
                                     let elapsed = start_time.elapsed();
                                     match timeout.unwrap().checked_sub(elapsed) {
                                         None => {
@@ -630,7 +630,7 @@ impl SacnReceiver {
                                                 .into());
                                             }
                                         }
-                                        Some(new_timeout) => return self.recv(Some(new_timeout)),
+                                        Some(new_timeout) => self.recv(Some(new_timeout)),
                                     }
                                 } else {
                                     // If the timeout was none then would keep looping till data is returned as the method should keep blocking till then.
@@ -788,7 +788,7 @@ impl SacnReceiver {
                 recv_timestamp: Instant::now(),
             };
 
-            return Ok(Some(vec![dmx_data]));
+            Ok(Some(vec![dmx_data]))
         } else {
             // As per ANSI E1.31-2018 Appendix B.2 the receiver should listen at the synchronisation address when a data packet is received with a non-zero
             // synchronisation address.
@@ -910,7 +910,7 @@ impl SacnReceiver {
         )?;
 
         let res = self.rtrv_waiting_data(sync_pkt.synchronization_address);
-        if res.len() == 0 {
+        if res.is_empty() {
             Ok(None)
         } else {
             Ok(Some(res))
@@ -983,7 +983,7 @@ impl SacnReceiver {
         let universes = data.universes;
 
         let uni_page: UniversePage = UniversePage {
-            page: page,
+            page,
             universes: universes.into(),
         };
 
@@ -1009,7 +1009,7 @@ impl SacnReceiver {
                 // This is the first page received from this source.
                 let discovered_src: DiscoveredSacnSource = DiscoveredSacnSource {
                     name: discovery_pkt.source_name.to_string(),
-                    last_page: last_page,
+                    last_page,
                     pages: vec![uni_page],
                     last_updated: Instant::now(),
                 };
@@ -1025,7 +1025,7 @@ impl SacnReceiver {
             }
         }
 
-        return None; // No source fully discovered.
+        None // No source fully discovered.
     }
 
     /// Goes through all the waiting data and removes any which has timed out as a sync-packet for it hasn't been received within the E131_NETWORK_DATA_LOSS_TIMEOUT
@@ -1112,19 +1112,19 @@ impl SacnNetworkReceiver {
     /// Will return an Io error if cannot join the universes corresponding multicast group address.
     ///
     fn listen_multicast_universe(&self, universe: u16) -> Result<()> {
-        let multicast_addr;
+        let multicast_addr =
 
         if self.addr.is_ipv4() {
-            multicast_addr = universe_to_ipv4_multicast_addr(universe)?; // "Failed to convert universe to IPv4 multicast addr"
+            multicast_addr = universe_to_ipv4_multicast_addr(universe)? // "Failed to convert universe to IPv4 multicast addr"
         } else {
-            multicast_addr = universe_to_ipv6_multicast_addr(universe)?; // "Failed to convert universe to IPv6 multicast addr"
-        }
+            multicast_addr = universe_to_ipv6_multicast_addr(universe)? // "Failed to convert universe to IPv6 multicast addr"
+        };
 
-        Ok(join_win_multicast(
+        join_win_multicast(
             &self.socket,
             multicast_addr,
             self.addr.ip(),
-        )?)
+        )
     }
 
     /// Removes this SacnNetworkReceiver from the multicast group which corresponds to the given universe.
@@ -1134,15 +1134,15 @@ impl SacnNetworkReceiver {
     /// IPv4 or IPv6 address. See packet::universe_to_ipv4_multicast_addr and packet::universe_to_ipv6_multicast_addr.
     ///
     fn mute_multicast_universe(&mut self, universe: u16) -> Result<()> {
-        let multicast_addr;
+        let multicast_addr= 
 
         if self.addr.is_ipv4() {
-            multicast_addr = universe_to_ipv4_multicast_addr(universe)?; // "Failed to convert universe to IPv4 multicast addr"
+            multicast_addr = universe_to_ipv4_multicast_addr(universe)? // "Failed to convert universe to IPv4 multicast addr"
         } else {
-            multicast_addr = universe_to_ipv6_multicast_addr(universe)?; // "Failed to convert universe to IPv6 multicast addr"
-        }
+            multicast_addr = universe_to_ipv6_multicast_addr(universe)? // "Failed to convert universe to IPv6 multicast addr"
+        };
 
-        Ok(leave_win_multicast(&self.socket, multicast_addr)?)
+        leave_win_multicast(&self.socket, multicast_addr)
     }
 
     /// Sets the value of the is_multicast_enabled flag to the given value.
@@ -1171,7 +1171,7 @@ impl SacnNetworkReceiver {
     /// This flag is set when the receiver is created as not all environments currently support IP multicast.
     /// E.g. IPv6 Windows IP Multicast is currently unsupported.
     fn is_multicast_enabled(&self) -> bool {
-        return self.is_multicast_enabled;
+        self.is_multicast_enabled
     }
 
     /// If set to true then only receive over IPv6. If false then receiving will be over both IPv4 and IPv6.
@@ -1210,7 +1210,7 @@ impl SacnNetworkReceiver {
     ) -> Result<AcnRootLayerProtocol<'a>> {
         self.socket.read(buf)?;
 
-        Ok(AcnRootLayerProtocol::parse(buf)?)
+        AcnRootLayerProtocol::parse(buf)
     }
 
     /// Set the timeout for the recv operation.
@@ -1227,7 +1227,7 @@ impl SacnNetworkReceiver {
 
     /// Returns true if this SacnNetworkReceiver is bound to an Ipv6 address.
     fn is_ipv6(&self) -> bool {
-        return self.addr.is_ipv6();
+        self.addr.is_ipv6()
     }
 }
 
@@ -1434,7 +1434,7 @@ impl DiscoveredSacnSource {
             }
         }
 
-        return true;
+        true
     }
 
     /// Returns all the universes being send by this SacnSource as discovered through the universe discovery mechanism.
@@ -1688,7 +1688,7 @@ fn join_win_multicast(socket: &Socket, addr: SockAddr, interface_addr: IpAddr) -
             }
         },
         x => {
-            return Err(SacnError::UnsupportedIpVersion(format!("IP version not recognised as AF_INET (Ipv4) or AF_INET6 (Ipv6) - family value (as i32): {}", x).to_string()));
+            return Err(SacnError::UnsupportedIpVersion(format!("IP version not recognised as AF_INET (Ipv4) or AF_INET6 (Ipv6) - family value (as i32): {x}").to_string()));
         }
     };
 
@@ -1739,7 +1739,7 @@ fn leave_win_multicast(socket: &Socket, addr: SockAddr) -> Result<()> {
             }
         },
         x => {
-            return Err(SacnError::UnsupportedIpVersion(format!("IP version not recognised as AF_INET (Ipv4) or AF_INET6 (Ipv6) - family value (as i32): {}", x).to_string()));
+            return Err(SacnError::UnsupportedIpVersion(format!("IP version not recognised as AF_INET (Ipv4) or AF_INET6 (Ipv6) - family value (as i32): {x}").to_string()));
         }
     };
 
@@ -1761,8 +1761,8 @@ struct TimedStampedSeqNo {
 impl TimedStampedSeqNo {
     fn new(sequence_number: u8, last_recv: Instant) -> TimedStampedSeqNo {
         TimedStampedSeqNo {
-            sequence_number: sequence_number,
-            last_recv: last_recv,
+            sequence_number,
+            last_recv,
         }
     }
 }
@@ -1793,10 +1793,10 @@ impl SequenceNumbering {
     /// This implementation uses HashMaps internally to allow O(1) checking and updating of sequence numbers.
     ///
     fn new() -> SequenceNumbering {
-        return SequenceNumbering {
+        SequenceNumbering {
             data_sequences: HashMap::new(),
             sync_sequences: HashMap::new(),
-        };
+        }
     }
 
     /// Clears the sequence number records completely removing all sources/universes for all types of packet.
@@ -2053,7 +2053,7 @@ fn check_timeouts(
                     break;
                 }
             }
-            if timedout_uni == None {
+            if timedout_uni.is_none() {
                 break;
             }
         }
@@ -2164,8 +2164,8 @@ pub fn discard_lowest_priority_then_previous(i: &DMXData, n: &DMXData) -> Result
 /// If this doesn't hold an error will be returned.
 /// Other merge functions may allow merging different start codes or not check for them.
 pub fn htp_dmx_merge(i: &DMXData, n: &DMXData) -> Result<DMXData> {
-    if i.values.len() < 1
-        || n.values.len() < 1
+    if i.values.is_empty()
+        || n.values.is_empty()
         || i.universe != n.universe
         || i.values[0] != n.values[0]
         || i.sync_uni != n.sync_uni
@@ -2197,9 +2197,9 @@ pub fn htp_dmx_merge(i: &DMXData, n: &DMXData) -> Result<DMXData> {
     let mut n_val = n_iter.next();
 
     while (i_val.is_some()) || (n_val.is_some()) {
-        if i_val == None {
+        if i_val.is_none() {
             r.values.push(*n_val.unwrap());
-        } else if n_val == None {
+        } else if n_val.is_none() {
             r.values.push(*i_val.unwrap());
         } else {
             r.values.push(max(*n_val.unwrap(), *i_val.unwrap()));
