@@ -557,17 +557,14 @@ impl Drop for SacnSource {
         };
 
         if let Some(thread) = self.update_thread.take() {
-            {
-                match unlock_internal_mut(&mut self.internal) {
-                    // Internal is accessed twice separately, this allows the discovery thread to interleave between running being set to false speeding up termination.
-                    Ok(mut i) => {
-                        match i.terminate(DEFAULT_TERMINATE_START_CODE) {
-                            _ => {} // For same reasons as above a potential error is ignored and a 'best attempt' is used to clean up.
-                        }
-                    }
-                    Err(_) => {} // As drop isn't always explicitly called and cannot return an error the error is ignored. Memory safety is maintain and this prevents causing a panic!.
-                };
-            }
+            // Internal is accessed twice separately, this allows the discovery thread to interleave between running being set to false speeding up termination.
+            if let Ok(mut i) = unlock_internal_mut(&mut self.internal) {
+                let _ = i.terminate(DEFAULT_TERMINATE_START_CODE);
+                {} // For same reasons as above a potential error is ignored and a 'best attempt' is used to clean up.
+            } else {
+                {} // As drop isn't always explicitly called and cannot return an error the error is ignored. Memory safety is maintain and this prevents causing a panic!.
+            };
+
             thread.join().unwrap();
         }
     }
@@ -694,7 +691,7 @@ impl SacnSourceInternal {
         match self.universes.binary_search(&universe) {
             Err(_i) => {
                 // Value not found
-                return Err(SacnError::UniverseNotFound(universe));
+                Err(SacnError::UniverseNotFound(universe))
             }
             Ok(i) => {
                 // Value found, i is index.
@@ -797,13 +794,13 @@ impl SacnSourceInternal {
             return Err(SacnError::UniverseListEmpty());
         }
 
-        for i in 0..required_universes {
+        for (i, &universe) in universes.iter().enumerate().take(required_universes) {
             let start_index = i * UNIVERSE_CHANNEL_CAPACITY;
             // Safety check to make sure that the end index doesn't exceed the data length
             let end_index = cmp::min((i + 1) * UNIVERSE_CHANNEL_CAPACITY, data.len());
 
             self.send_universe(
-                universes[i],
+                universe,
                 &data[start_index..end_index],
                 priority.unwrap_or(E131_DEFAULT_PRIORITY),
                 &dst_ip,
@@ -932,17 +929,13 @@ impl SacnSourceInternal {
     fn send_sync_packet(&self, universe: u16, dst_ip: Option<SocketAddr>) -> Result<()> {
         self.universe_allowed(&universe)?;
 
-        let ip;
-
-        if dst_ip.is_none() {
-            if self.addr.is_ipv6() {
-                ip = universe_to_ipv6_multicast_addr(universe)?;
-            } else {
-                ip = universe_to_ipv4_multicast_addr(universe)?;
-            }
+        let ip = if let Some(dst) = dst_ip {
+            dst.into()
+        } else if self.addr.is_ipv6() {
+            universe_to_ipv6_multicast_addr(universe)?
         } else {
-            ip = dst_ip.unwrap().into();
-        }
+            universe_to_ipv4_multicast_addr(universe)?
+        };
 
         let mut sequence = match self.sync_sequences.borrow().get(&universe) {
             Some(s) => *s,
@@ -1301,7 +1294,7 @@ fn unlock_internal(
             // shouldn't be exposed to the user (as its internal and would have no use).
             // Cannot directly return the PoisonError due to PoisonError using a different error system to other std modules which doesn't work with
             // error_chain.
-            return Err(SacnError::SourceCorrupt("Mutex poisoned".to_string()));
+            Err(SacnError::SourceCorrupt("Mutex poisoned".to_string()))
         }
         Ok(lock) => Ok(lock),
     }
@@ -1329,7 +1322,7 @@ fn unlock_internal_mut(
             // shouldn't be exposed to the user (as its internal and would have no use).
             // Cannot directly return the PoisonError due to PoisonError using a different error system to other std modules which doesn't work with
             // error_chain.
-            return Err(SacnError::SourceCorrupt("Mutex poisoned".to_string()));
+            Err(SacnError::SourceCorrupt("Mutex poisoned".to_string()))
         }
         Ok(lock) => Ok(lock),
     }

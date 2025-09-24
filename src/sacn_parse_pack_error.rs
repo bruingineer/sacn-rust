@@ -7,10 +7,9 @@
 //
 // This file was created as part of a University of St Andrews Computer Science BSC Senior Honours Dissertation Project.
 
-/// The errors used within the SacnLibrary specifically those related to parsing and packeting packets received/sent on the network.
-///
+//! The errors used within the SacnLibrary specifically those related to parsing and packeting packets received/sent on the network.
 
-pub mod sacn_parse_pack_error {
+// pub mod sacn_parse_pack_error {
     use thiserror::Error;
     use uuid::Uuid;
 
@@ -146,4 +145,4 @@ pub mod sacn_parse_pack_error {
         #[error("Source name in packet was not null terminated.")]
         SourceNameNotNullTerminated(),
     }
-}
+// }

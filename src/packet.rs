@@ -54,7 +54,7 @@
 
 /// Uses the sACN errors.
 use crate::error::errors::{Result, SacnError};
-use crate::sacn_parse_pack_error::sacn_parse_pack_error::ParsePacketError;
+use crate::sacn_parse_pack_error::ParsePacketError;
 
 /// The core crate is used for string processing during packet parsing/packing as well as to provide access to the Hash trait.
 use core::hash::{self, Hash};

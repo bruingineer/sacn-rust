@@ -294,14 +294,11 @@ impl SacnReceiver {
     /// For more details see SacnReceiver::listen_universes().
     ///
     pub fn with_ip(ip: SocketAddr, source_limit: Option<usize>) -> Result<SacnReceiver> {
-        match source_limit {
-            Some(x) => {
-                if x == 0 {
-                    return Err(SacnError::SourceLimitZero());
-                }
-            }
-            None => {}
-        }
+        if let Some(x) = source_limit
+            && x == 0
+        {
+            return Err(SacnError::SourceLimitZero());
+        };
         let mut sri = SacnReceiver {
             receiver: SacnNetworkReceiver::new(ip)?,
             waiting_data: HashMap::new(),
@@ -451,7 +448,7 @@ impl SacnReceiver {
         match self.universes.binary_search(&universe) {
             Err(_) => {
                 // Universe isn't found.
-                return Err(SacnError::UniverseNotFound(universe));
+                Err(SacnError::UniverseNotFound(universe))
             }
             Ok(i) => {
                 // If value found then don't insert to avoid duplicates.
@@ -569,11 +566,12 @@ impl SacnReceiver {
                     UniverseDiscoveryPacket(u) => {
                         let discovered_src: Option<String> =
                             self.handle_universe_discovery_packet(u);
-                        if discovered_src.is_some() && self.announce_source_discovery {
-                            return Err(SacnError::SourceDiscovered(discovered_src.unwrap()));
-                        } else {
-                            None
-                        }
+                        if let Some(src) = discovered_src
+                            && self.announce_source_discovery
+                        {
+                            return Err(SacnError::SourceDiscovered(src));
+                        };
+                        None
                     }
                 };
 
@@ -589,11 +587,11 @@ impl SacnReceiver {
                             match timeout.unwrap().checked_sub(elapsed) {
                                 None => {
                                     // Indicates that elapsed is bigger than timeout so its time to return.
-                                    return Err(std::io::Error::new(
+                                    Err(std::io::Error::new(
                                         std::io::ErrorKind::WouldBlock,
                                         "No data available in given timeout",
                                     )
-                                    .into());
+                                    .into())
                                 }
                                 Some(new_timeout) => self.recv(Some(new_timeout)),
                             }
@@ -617,17 +615,17 @@ impl SacnReceiver {
                                             // Indicates that elapsed is bigger than timeout so its time to return.
                                             if cfg!(target_os = "windows") {
                                                 // Use the right expected error for the operating system.
-                                                return Err(std::io::Error::new(
+                                                Err(std::io::Error::new(
                                                     std::io::ErrorKind::TimedOut,
                                                     "No data available in given timeout",
                                                 )
-                                                .into());
+                                                .into())
                                             } else {
-                                                return Err(std::io::Error::new(
+                                                Err(std::io::Error::new(
                                                     std::io::ErrorKind::WouldBlock,
                                                     "No data available in given timeout",
                                                 )
-                                                .into());
+                                                .into())
                                             }
                                         }
                                         Some(new_timeout) => self.recv(Some(new_timeout)),
@@ -830,20 +828,14 @@ impl SacnReceiver {
     /// universe:    The sACN universe to remove.
     ///
     fn terminate_stream<'a>(&mut self, src_cid: Uuid, source_name: Cow<'a, str>, universe: u16) {
-        match self.sequences.remove_seq_numbers(src_cid, universe) {
-            _ => {
-                // Will only return an error if the source/universe wasn't found which is acceptable because as it
-                // comes to the same result.
-            }
-        }
+        // Will only return an error if the source/universe wasn't found which is acceptable because as it
+        // comes to the same result.
+        let _ = self.sequences.remove_seq_numbers(src_cid, universe);
 
-        match find_discovered_src(&self.discovered_sources, &source_name.to_string()) {
-            Some(index) => {
-                self.discovered_sources[index].terminate_universe(universe);
-            }
-            None => {
-                // As with sequence numbers the source might not be found which is acceptable.
-            }
+        // As with sequence numbers the source might not be found which is acceptable.
+        if let Some(index) = find_discovered_src(&self.discovered_sources, &source_name.to_string())
+        {
+            self.discovered_sources[index].terminate_universe(universe);
         }
     }
 
@@ -952,11 +944,8 @@ impl SacnReceiver {
     /// Arguments:
     /// src: The DiscoveredSacnSource to update the record of discovered sacn sources with.
     fn update_discovered_srcs(&mut self, src: DiscoveredSacnSource) {
-        match find_discovered_src(&self.discovered_sources, &src.name) {
-            Some(index) => {
-                self.discovered_sources.remove(index);
-            }
-            None => {}
+        if let Some(index) = find_discovered_src(&self.discovered_sources, &src.name) {
+            self.discovered_sources.remove(index);
         }
         self.discovered_sources.push(src);
     }
@@ -1072,13 +1061,8 @@ impl Drop for SacnReceiver {
 /// srcs: The Vec of DiscoveredSacnSources to search.
 /// name: The human readable name of the source to find.
 ///
-fn find_discovered_src(srcs: &Vec<DiscoveredSacnSource>, name: &String) -> Option<usize> {
-    for i in 0..srcs.len() {
-        if srcs[i].name == *name {
-            return Some(i);
-        }
-    }
-    None
+fn find_discovered_src(srcs: &[DiscoveredSacnSource], name: &String) -> Option<usize> {
+    (0..srcs.len()).find(|&i| srcs[i].name == *name)
 }
 
 /// In general the lower level transport layer is handled by SacnNetworkReceiver (which itself wraps a Socket).
@@ -1170,7 +1154,7 @@ impl SacnNetworkReceiver {
     /// This will return an error if the SacnReceiver wasn't created using an IPv6 address to bind to.
     fn set_only_v6(&mut self, val: bool) -> Result<()> {
         if self.addr.is_ipv4() {
-            return Err(SacnError::IpVersionError());
+            Err(SacnError::IpVersionError())
         } else {
             Ok(self.socket.set_only_v6(val)?)
         }
@@ -1650,7 +1634,7 @@ fn join_win_multicast(socket: &Socket, addr: SockAddr, interface_addr: IpAddr) -
             Some(a) => match interface_addr {
                 IpAddr::V4(ref interface_v4) => {
                     socket
-                        .join_multicast_v4(a.ip(), &interface_v4)
+                        .join_multicast_v4(a.ip(), interface_v4)
                         .map_err(|e| {
                             SacnError::Io(std::io::Error::new(
                                 e.kind(),
@@ -1945,22 +1929,18 @@ fn check_seq_number(
         E131_NETWORK_DATA_LOSS_TIMEOUT,
         announce_timeout,
     )?;
-
-    match src_sequences.get(&cid) {
-        None => {
-            // New source not previously received from.
-            if source_limit.is_none() || src_sequences.len() < source_limit.unwrap() {
-                src_sequences.insert(cid, HashMap::new());
-            } else {
-                return Err(SacnError::SourcesExceededError(src_sequences.len()));
-            }
+    if let None = src_sequences.get(&cid) {
+        // New source not previously received from.
+        if source_limit.is_none() || src_sequences.len() < source_limit.unwrap() {
+            src_sequences.insert(cid, HashMap::new());
+        } else {
+            return Err(SacnError::SourcesExceededError(src_sequences.len()));
         }
-        Some(_) => {}
     };
 
     let expected_seq = match src_sequences.get(&cid) {
         Some(src) => {
-            let seq_num = match src.get(&universe) {
+            match src.get(&universe) {
                 // Get the sequence number within the source for the specific universe.
                 Some(s) => {
                     // Indicates that the source / universe combination is known.
@@ -1970,8 +1950,7 @@ fn check_seq_number(
                     // Indicates that this is the first time (or the first time since it timed out) the universe has been received from this source.
                     TimedStampedSeqNo::new(INITIAL_SEQUENCE_NUMBER, Instant::now())
                 }
-            };
-            seq_num
+            }
         }
         None => {
             // Previously checked that cid is present (and added if not), if None is returned now it indicates that between that check and this
@@ -2049,12 +2028,11 @@ fn check_timeouts(
                 break;
             }
         }
-        if timedout_uni.is_some() {
+        if let Some(uni_to_remove) = timedout_uni {
             // If None then it indicates nothing timed out.
-            let uni_to_remove = timedout_uni.unwrap();
             let src_universes = src_sequences.get_mut(&timedout_src_id.unwrap());
-            if src_universes.is_some() {
-                let universes = src_universes.unwrap();
+
+            if let Some(universes) = src_universes {
                 universes.remove(&uni_to_remove);
                 if universes.is_empty() {
                     // Remove source if all its universes have timed out
@@ -2062,7 +2040,7 @@ fn check_timeouts(
                 }
                 return Err(SacnError::UniverseTimeout(
                     timedout_src_id.unwrap(),
-                    timedout_uni.unwrap(),
+                    uni_to_remove,
                 ));
             }
         }
@@ -2107,22 +2085,16 @@ fn remove_source_universe_seq(
                         // Remove the source if there are no universes registered to it.
                         match src_sequences.remove(&src_cid) {
                             Some(_x) => Ok(()),
-                            None => {
-                                return Err(SacnError::SourceNotFound(src_cid));
-                            }
+                            None => Err(SacnError::SourceNotFound(src_cid)),
                         }
                     } else {
                         Ok(())
                     }
                 }
-                None => {
-                    return Err(SacnError::UniverseNotFound(universe));
-                }
+                None => Err(SacnError::UniverseNotFound(universe)),
             }
         }
-        None => {
-            return Err(SacnError::SourceNotFound(src_cid));
-        }
+        None => Err(SacnError::SourceNotFound(src_cid)),
     }
 }
 
@@ -2250,14 +2222,14 @@ mod test {
             UniverseDiscoveryPacketFramingLayer {
                 source_name: name.into(),
 
-                /// Universe discovery layer.
+                // Universe discovery layer.
                 data: UniverseDiscoveryPacketUniverseDiscoveryLayer {
                     page: page,
 
-                    /// The number of the final page.
+                    // The number of the final page.
                     last_page: last_page,
 
-                    /// List of universes.
+                    // List of universes.
                     universes: universes.clone().into(),
                 },
             };
@@ -2298,14 +2270,14 @@ mod test {
             UniverseDiscoveryPacketFramingLayer {
                 source_name: name.into(),
 
-                /// Universe discovery layer.
+                // Universe discovery layer.
                 data: UniverseDiscoveryPacketUniverseDiscoveryLayer {
                     page: 0,
 
-                    /// The number of the final page.
-                    last_page: last_page,
+                    // The number of the final page.
+                    last_page,
 
-                    /// List of universes.
+                    // List of universes.
                     universes: universes_page_1.clone().into(),
                 },
             };
@@ -2314,14 +2286,14 @@ mod test {
             UniverseDiscoveryPacketFramingLayer {
                 source_name: name.into(),
 
-                /// Universe discovery layer.
+                // Universe discovery layer.
                 data: UniverseDiscoveryPacketUniverseDiscoveryLayer {
                     page: 1,
 
-                    /// The number of the final page.
-                    last_page: last_page,
+                    // The number of the final page.
+                    last_page,
 
-                    /// List of universes.
+                    // List of universes.
                     universes: universes_page_2.clone().into(),
                 },
             };
