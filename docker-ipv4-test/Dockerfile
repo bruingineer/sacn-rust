@@ -1,7 +1,5 @@
 # Start with Windows Server Core as the base image
-# FROM mcr.microsoft.com/windows/server:ltsc2022
-FROM mcr.microsoft.com/powershell:windowsservercore-ltsc2022
-
+FROM mcr.microsoft.com/windows/server:ltsc2022
 
 # Set metadata for the image
 LABEL description="Windows container for IPv4 sACN testing"
@@ -16,7 +14,7 @@ RUN powershell -Command \
     Remove-Item rustup-init.exe
 
 # Add Rust binaries to PATH
-ENV PATH="C:\Users\ContainerAdministrator\.cargo\bin;${PATH}"
+ENV PATH="C:\Users\ContainerAdministrator\.cargo\bin;$PATH"
 
 # Copy project files
 COPY src/ ./src/
