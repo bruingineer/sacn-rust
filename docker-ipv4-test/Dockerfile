@@ -8,7 +8,7 @@ LABEL description="Windows container for IPv4 sACN testing"
 WORKDIR /app
 
 
-RUN powershell -Command setx /M RUSTUP_HOME \"C:\.rustup\\"; setx /M CARGO_HOME \"C:\.cargo\\"
+RUN powershell -Command $env:RUSTUP_HOME=\"C:\.rustup\\"; $env:CARGO_HOME=\"C:\.cargo\\"
 
 # Install Rust using rustup
 RUN powershell -Command \
@@ -19,7 +19,7 @@ RUN powershell -Command \
 
 # Add Rust binaries to PATH
 # ENV PATH="C:\\rust\\.cargo\\bin;${PATH}"
-RUN powershell -Command setx /M PATH \"$env:CARGO_HOME\\.cargo\\bin;$env:PATH\"
+RUN powershell -Command $env:PATH=\"$env:CARGO_HOME\\.cargo\\bin;$env:PATH\"
 
 RUN powershell -Command echo $env:PATH
 
