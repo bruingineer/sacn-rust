@@ -79,6 +79,7 @@ jobs:
         echo "get adapters..."
         # Grab the new adapters, rename them, and assign one IP each
         $loopbacks = Get-NetAdapter | Where {$_.InterfaceDescription -like "*Loopback*"} | Sort-Object ifIndex
+        echo $loopbacks
         if ($loopbacks.Count -lt 3) { throw "Expected 3 loopback adapters, found $($loopbacks.Count)" }
 
         for ($i = 0; $i -lt 3; $i++) {
