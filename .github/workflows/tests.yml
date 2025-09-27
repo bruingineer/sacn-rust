@@ -66,6 +66,7 @@ jobs:
     - name: Configure IP
       shell: powershell
       run: |
+        refreshenv
         $ips = @("192.168.0.6","192.168.0.7","192.168.0.8")
         $devcon = (Get-Command devcon.exe).Source
         # Create three Microsoft KM-TEST Loopback Adapters
