@@ -66,6 +66,7 @@ jobs:
     - name: Configure IP
       shell: powershell
       run: |
+        Import-Module "$env:ChocolateyInstall/helpers/chocolateyInstaller.psm1"
         refreshenv
         $ips = @("192.168.0.6","192.168.0.7","192.168.0.8")
         $devcon = (Get-Command devcon.exe).Source
