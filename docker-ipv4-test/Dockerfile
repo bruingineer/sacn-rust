@@ -4,16 +4,16 @@ FROM mcr.microsoft.com/windows/server:ltsc2022
 # Set metadata for the image
 LABEL description="Windows container for IPv4 sACN testing"
 
+# Download and install Build Tools for Visual Studio 2022 for native desktop workload.
+ADD https://aka.ms/vs/17/release/vs_buildtools.exe C:\\TEMP\\vs_buildtools.exe
+RUN C:\\TEMP\\Install.cmd C:\\TEMP\\vs_buildtools.exe --quiet --wait --norestart --nocache \
+    --channelUri C:\\TEMP\\VisualStudio.chman \
+    --installChannelUri C:\\TEMP\\VisualStudio.chman \
+    --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended \
+    --installPath C:\\BuildTools
+
 # Set working directory to the root of the project
 WORKDIR /app
-
-# Download and install Build Tools for Visual Studio 2022 for native desktop workload.
-ADD https://aka.ms/vs/17/release/vs_buildtools.exe C:\TEMP\vs_buildtools.exe
-RUN C:\TEMP\Install.cmd C:\TEMP\vs_buildtools.exe --quiet --wait --norestart --nocache \
-    --channelUri C:\TEMP\VisualStudio.chman \
-    --installChannelUri C:\TEMP\VisualStudio.chman \
-    --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended \
-    --installPath C:\BuildTools
 
 RUN powershell -Command $env:RUSTUP_HOME=\"C:\\.rustup\\\"
 RUN powershell -Command $env:CARGO_HOME=\"C:\\.cargo\\\"
