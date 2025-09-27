@@ -7,20 +7,21 @@ LABEL description="Windows container for IPv4 sACN testing"
 # Set working directory to the root of the project
 WORKDIR /app
 
+
+RUN powershell -Command $env:RUSTUP_HOME="C:\\.rustup\\"; $env:CARGO_HOME="C:\\.cargo\\"
+
 # Install Rust using rustup
 RUN powershell -Command \
     Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe; \
     Start-Process -Wait -FilePath .\rustup-init.exe -ArgumentList '-y'; \
-    Remove-Item rustup-init.exe
-
-RUN powershell -Command echo $env:PATH
-RUN echo $PATH
+    Remove-Item rustup-init.exe; \
+    echo $env:PATH
 
 # Add Rust binaries to PATH
-ENV PATH="C:\\Users\\ContainerAdministrator\\.cargo\\bin;${PATH}"
+# ENV PATH="C:\\rust\\.cargo\\bin;${PATH}"
+RUN powershell -Command setx /M PATH \"$env:CARGO_HOME\\.cargo\\bin;$env:PATH\"
 
 RUN powershell -Command echo $env:PATH
-RUN echo $PATH
 
 # Copy project files
 COPY src/ ./src/
