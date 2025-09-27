@@ -31,9 +31,9 @@ COPY Cargo.lock ./
 COPY tests/ ./tests/
 
 # Install required PowerShell modules
-RUN powershell -Command \
-    Install-Module -Name NetAdapter -Force -SkipPublisherCheck; \
-    Install-Module -Name NetTCPIP -Force -SkipPublisherCheck
+# RUN powershell -Command \
+    # Install-Module -Name NetAdapter -Force -SkipPublisherCheck; \
+    # Install-Module -Name NetTCPIP -Force -SkipPublisherCheck
 
 # Copy test scripts
 COPY scripts/configure-ip.ps1 ./scripts/
