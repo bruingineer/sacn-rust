@@ -36,9 +36,9 @@ COPY tests/ ./tests/
     # Install-Module -Name NetTCPIP -Force -SkipPublisherCheck
 
 # Copy test scripts
-COPY scripts/configure-ip.ps1 ./scripts/
-COPY scripts/run-tests.ps1 ./scripts/
-COPY tests/ipv4_tests.ps1 ./tests/
+COPY docker-ipv4-test/scripts/configure-ip.ps1 ./scripts/
+COPY docker-ipv4-test/scripts/run-tests.ps1 ./scripts/
+COPY docker-ipv4-test/tests/ipv4_tests.ps1 ./tests/
 
 # Make scripts executable
 RUN powershell -Command \
