@@ -33,5 +33,3 @@ jobs:
       run: |
         cargo test --verbose -- --test-threads=1 \
         cargo test ipv4 -- --ignored --test-threads=1
-    
-
