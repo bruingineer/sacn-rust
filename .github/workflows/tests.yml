@@ -62,9 +62,9 @@ jobs:
     - name: Run integration tests
       shell: powershell
       run: |
-        $env:IP_ADDRESS_1=192.168.0.6
-        $env:IP_ADDRESS_2=192.168.0.7
-        $env:IP_ADDRESS_3=192.168.0.8
+        $env:IP_ADDRESS_1="192.168.0.6"
+        $env:IP_ADDRESS_2="192.168.0.7"
+        $env:IP_ADDRESS_3="192.168.0.8"
         $env:PPREFIX_LENGTH=24
         ./docker-ipv4-test/scripts/configure-ip.ps1
         ./docker-ipv4-test/scripts/run-tests.ps1
