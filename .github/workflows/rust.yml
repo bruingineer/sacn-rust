@@ -34,22 +34,29 @@ jobs:
       run: cargo test --verbose -- --ignored --test-threads=1 --nocapture
 
   test-windows:
-
     runs-on: windows-latest
-
+    
     steps:
     - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Configure test network interfaces
-      shell: powershell
+    
+    - name: Set up Docker
+      uses: docker/setup-buildx-action@v3
+      with:
+        version: latest
+    
+    - name: Build test container
       run: |
-        New-NetIPAddress -InterfaceAlias (Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1).Name -IPAddress "192.168.0.6" -PrefixLength 24
-        New-NetIPAddress -InterfaceAlias (Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1).Name -IPAddress "192.168.0.7" -PrefixLength 24
-        New-NetIPAddress -InterfaceAlias (Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1).Name -IPAddress "192.168.0.8" -PrefixLength 24
-    - name: Run integration tests
-      run: cargo test --test "*" --verbose -- --nocapture --test-threads=1
-    - name: Run doc tests
-      run: cargo test --doc --verbose
-    - name: Run ignored tests
-      run: cargo test --verbose -- --ignored --test-threads=1 --nocapture
+        cd docker-ipv4-test
+        docker build -t ipv4-test .
+    
+    - name: Run tests in container
+      run: |
+        docker run --rm `
+          --network host `
+          --cap-add NET_ADMIN `
+          --cap-add NET_RAW `
+          -e IP_ADDRESS_1=192.168.0.6 `
+          -e IP_ADDRESS_2=192.168.0.7 `
+          -e IP_ADDRESS_3=192.168.0.8 `
+          -e PREFIX_LENGTH=24 `
+          ipv4-test
