@@ -44,7 +44,13 @@ jobs:
       run: |
         $ErrorActionPreference = 'Stop'
         Write-Host "Switching Docker to Windows containers..."
-        & $Env:ProgramFiles\Docker\Docker\DockerCli.exe -SwitchDaemon
+        # Use stop-service and start-service to restart docker with Windows containers
+        Stop-Service docker
+        # Set the Docker daemon to run Windows containers
+        $config = Get-Content -Path "$env:ProgramData\Docker\config\daemon.json" | ConvertFrom-Json
+        $config | Add-Member -Name "os" -Value "windows" -MemberType NoteProperty -Force
+        $config | ConvertTo-Json | Set-Content -Path "$env:ProgramData\Docker\config\daemon.json"
+        Start-Service docker
         Start-Sleep -Seconds 10
         docker version
 
