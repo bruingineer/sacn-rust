@@ -13,8 +13,14 @@ RUN powershell -Command \
     Start-Process -Wait -FilePath .\rustup-init.exe -ArgumentList '-y'; \
     Remove-Item rustup-init.exe
 
+RUN powershell -Command echo $env:PATH
+RUN echo $PATH
+
 # Add Rust binaries to PATH
-ENV PATH="C:\Users\ContainerAdministrator\.cargo\bin;$PATH"
+ENV PATH="C:\\Users\\ContainerAdministrator\\.cargo\\bin;${PATH}"
+
+RUN powershell -Command echo $env:PATH
+RUN echo $PATH
 
 # Copy project files
 COPY src/ ./src/
