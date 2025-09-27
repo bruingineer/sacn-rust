@@ -7,7 +7,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # Run the specific IPv4 tests
 Write-Host "Running IPv4 tests..."
-cargo test ipv4 -- --ignored --nocapture --test-threads=1
+cargo test ipv4 -- --ignored --no-capture --test-threads=1
 
 # Store the exit code from cargo test
 $testExitCode = $LASTEXITCODE
