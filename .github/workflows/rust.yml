@@ -27,13 +27,30 @@ jobs:
     # - name: Run tests
     #   run: cargo test --lib --verbose --no-run
     - name: Run integration tests
-      run: cargo test --test "*" --verbose -- --nocapture --test-threads=1
-    - name: Run doc tests
-      run: cargo test --doc --verbose
-    - name: Run ipv4 tests
-      run: cargo test ipv4 --verbose -- --ignored --test-threads=1 --nocapture
+      run: cargo test --test "*" -- --nocapture --test-threads=1
+      run: cargo test --doc
+      run: cargo test ipv4 -- --ignored --test-threads=1 --nocapture
 
   test-windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build
+      run: cargo build --verbose
+    - name: Configure test network interfaces
+      run: |
+        sudo ip addr add 192.168.0.6/24 dev eth0
+        sudo ip addr add 192.168.0.7/24 dev eth0
+        sudo ip addr add 192.168.0.8/24 dev eth0
+        sudo ip link set dev lo up
+    # - name: Run tests
+    #   run: cargo test --lib --verbose --no-run
+    - name: Run integration tests
+      run: cargo test --test "*" -- --nocapture --test-threads=1
+      run: cargo test --doc
+
+  test-windows-ipv4:
     runs-on: windows-2022
     
     steps:
@@ -41,9 +58,9 @@ jobs:
 
     - name: Build test container
       shell: powershell
-      run: |
-        cd docker-ipv4-test
-        docker build --isolation=hyperv -t ipv4-test .
+      run: docker build --file docker-ipv4-test/Dockerfile --isolation=hyperv -t ipv4-test . #|
+    # cd docker-ipv4-test
+    #    docker build --file docker-ipv4-test/Dockerfile --isolation=hyperv -t ipv4-test .
     
     - name: Run tests in container
       shell: powershell
