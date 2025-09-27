@@ -62,11 +62,17 @@ jobs:
     - name: Configure IP
       shell: powershell
       run: |
-        $env:IP_ADDRESS_1="192.168.0.6"
-        $env:IP_ADDRESS_2="192.168.0.7"
-        $env:IP_ADDRESS_3="192.168.0.8"
-        $env:PPREFIX_LENGTH=24
-        ./docker-ipv4-test/scripts/configure-ip.ps1
+        $ip1="192.168.0.6"
+        $ip2="192.168.0.7"
+        $ip3="192.168.0.8"
+        $prefixLength=24
+        $adapter = Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1
+        echo $adapter
+        New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip1 -PrefixLength $prefixLength
+        New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip2 -PrefixLength $prefixLength
+        New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip3 -PrefixLength $prefixLength
+        echo "configed IP"
+      # ./docker-ipv4-test/scripts/configure-ip.ps1
       # ./docker-ipv4-test/scripts/run-tests.ps1
     - name: Run tests
       shell: powershell
