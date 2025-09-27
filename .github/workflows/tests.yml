@@ -1,4 +1,4 @@
-name: windows
+name: Rust Tests
 
 on:
   push:
