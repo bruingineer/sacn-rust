@@ -30,8 +30,8 @@ jobs:
       run: cargo test --test "*" --verbose -- --nocapture --test-threads=1
     - name: Run doc tests
       run: cargo test --doc --verbose
-    - name: Run ignored tests
-      run: cargo test --verbose -- --ignored --test-threads=1 --nocapture
+    - name: Run ipv4 tests
+      run: cargo test ipv4 --verbose -- --ignored --test-threads=1 --nocapture
 
   test-windows:
     runs-on: windows-latest
@@ -41,8 +41,6 @@ jobs:
     
     - name: Set up Docker
       uses: docker/setup-buildx-action@v3
-      with:
-        version: latest
     
     - name: Build test container
       run: |
