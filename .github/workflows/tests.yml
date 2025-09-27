@@ -32,10 +32,11 @@ jobs:
     - uses: actions/checkout@v4
     - name: Configure test network interfaces
       run: |
-        sudo ip addr add 192.168.0.6/24 dev eth0
-        sudo ip addr add 192.168.0.7/24 dev eth0
-        sudo ip addr add 192.168.0.8/24 dev eth0
+        sudo ip addr add 192.168.0.6/24 dev lo
+        sudo ip addr add 192.168.0.7/24 dev lo
+        sudo ip addr add 192.168.0.8/24 dev lo
         sudo ip link set dev lo up
+        ip addr show dev lo
     - name: Run ipv4 tests
       run: cargo test ipv4 -- --ignored --test-threads=1 --no-capture
 
@@ -59,19 +60,44 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install devcon
+      shell: powershell
+      run: choco install devcon.portable -y
     - name: Configure IP
       shell: powershell
       run: |
-        $ip1="192.168.0.6"
-        $ip2="192.168.0.7"
-        $ip3="192.168.0.8"
-        $prefixLength=24
-        $adapter = Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1
-        echo $adapter
-        New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip1 -PrefixLength $prefixLength
-        New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip2 -PrefixLength $prefixLength
-        New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip3 -PrefixLength $prefixLength
-        echo "configed IP"
+        $ips = @("192.168.0.6","192.168.0.7","192.168.0.8")
+        $devcon = (Get-Command devcon.exe).Source
+        # Create three Microsoft KM-TEST Loopback Adapters
+        1..3 | ForEach-Object {
+          & $devcon install "$env:WINDIR\Inf\netloop.inf" *msloop
+        }
+        Start-Sleep -Seconds 3
+
+        # Grab the new adapters, rename them, and assign one IP each
+        $loopbacks = Get-NetAdapter -InterfaceDescription "Microsoft KM-TEST Loopback Adapter" | Sort-Object ifIndex
+        if ($loopbacks.Count -lt 3) { throw "Expected 3 loopback adapters, found $($loopbacks.Count)" }
+
+        for ($i = 0; $i -lt 3; $i++) {
+          $alias = "Loopback$($i+1)"
+          Rename-NetAdapter -Name $loopbacks[$i].Name -NewName $alias
+          # Assign /24 on each NIC (adjust as needed)
+          New-NetIPAddress -InterfaceAlias $alias -IPAddress $ips[$i] -PrefixLength 24 | Out-Null
+        }
+
+        Write-Host "Configured:"
+        Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.InterfaceAlias -like "Loopback*"} | Format-Table InterfaceAlias,IPAddress,PrefixLength
+      # run: |
+      #   $ip1="192.168.0.6"
+      #   $ip2="192.168.0.7"
+      #   $ip3="192.168.0.8"
+      #   $prefixLength=24
+      #   $adapter = Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1
+      #   echo $adapter
+      #   New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip1 -PrefixLength $prefixLength
+      #   New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip2 -PrefixLength $prefixLength
+      #   New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip3 -PrefixLength $prefixLength
+      #   echo "configed IP"
       # ./docker-ipv4-test/scripts/configure-ip.ps1
       # ./docker-ipv4-test/scripts/run-tests.ps1
     - name: Run tests
