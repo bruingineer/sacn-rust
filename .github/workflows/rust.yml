@@ -39,27 +39,26 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Enable Windows Containers (if on Windows runner)
-      if: runner.os == 'Windows'
+    - name: Switch to Windows containers
       shell: powershell
-      run: Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V, Containers -All
-    
-    - name: Set up Docker
-      uses: docker/setup-buildx-action@v3
-      with:
-        version: latest
-    
+      run: |
+        $ErrorActionPreference = 'Stop'
+        Write-Host "Switching Docker to Windows containers..."
+        & $Env:ProgramFiles\Docker\Docker\DockerCli.exe -SwitchDaemon
+        Start-Sleep -Seconds 10
+        docker version
+
     - name: Build test container
+      shell: powershell
       run: |
         cd docker-ipv4-test
-        docker build -t ipv4-test .
+        docker build --isolation=hyperv -t ipv4-test .
     
     - name: Run tests in container
+      shell: powershell
       run: |
         docker run --rm `
-          --network host `
-          --cap-add NET_ADMIN `
-          --cap-add NET_RAW `
+          --isolation=hyperv `
           -e IP_ADDRESS_1=192.168.0.6 `
           -e IP_ADDRESS_2=192.168.0.7 `
           -e IP_ADDRESS_3=192.168.0.8 `
