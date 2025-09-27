@@ -59,7 +59,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Run integration tests
+    - name: Configure IP
       shell: powershell
       run: |
         $env:IP_ADDRESS_1="192.168.0.6"
@@ -67,7 +67,10 @@ jobs:
         $env:IP_ADDRESS_3="192.168.0.8"
         $env:PPREFIX_LENGTH=24
         ./docker-ipv4-test/scripts/configure-ip.ps1
-        ./docker-ipv4-test/scripts/run-tests.ps1
+      # ./docker-ipv4-test/scripts/run-tests.ps1
+    - name: Run tests
+      shell: powershell
+      run: cargo test ipv4 -- --ignored --no-capture --test-threads=1
 
   # windows-ipv4:
   #   runs-on: windows-2022

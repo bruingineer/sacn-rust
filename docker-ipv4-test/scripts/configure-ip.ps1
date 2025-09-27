@@ -8,6 +8,7 @@ $prefixLength = $env:PREFIX_LENGTH
 
 # Get the Ethernet adapter
 $adapter = Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1
+echo $adapter
 
 if ($adapter) {
     try {
@@ -16,8 +17,8 @@ if ($adapter) {
         New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip2 -PrefixLength $prefixLength
         New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip3 -PrefixLength $prefixLength
         
-        Write-Host "Successfully configured IP addresses:"
-        Write-Host "IP1: $ip1/$prefixLength"
+        echo "Successfully configured IP addresses:"
+        echo "IP1: $ip1/$prefixLength"
         Write-Host "IP2: $ip2/$prefixLength"
         Write-Host "IP3: $ip3/$prefixLength"
     } catch {
