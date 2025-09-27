@@ -38,6 +38,11 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+
+    - name: Enable Windows Containers (if on Windows runner)
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V, Containers -All
     
     - name: Set up Docker
       uses: docker/setup-buildx-action@v3
