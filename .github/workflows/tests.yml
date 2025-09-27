@@ -10,7 +10,36 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test-windows:
+  linux-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build
+      run: cargo build --verbose
+    # - name: Run tests
+    #   run: cargo test --lib --verbose --no-run
+    - name: Run integration tests
+      run: |
+        cargo test --lib --no-run
+        cargo test --test "*" -- --no-capture --test-threads=1
+        cargo test --doc
+
+  linux-ipv4:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Configure test network interfaces
+      run: |
+        sudo ip addr add 192.168.0.6/24 dev eth0
+        sudo ip addr add 192.168.0.7/24 dev eth0
+        sudo ip addr add 192.168.0.8/24 dev eth0
+        sudo ip link set dev lo up
+    - name: Run ipv4 tests
+      run: cargo test ipv4 -- --ignored --test-threads=1 --no-capture
+
+  windows-tests:
     runs-on: windows-latest
 
     steps:
@@ -22,10 +51,10 @@ jobs:
     - name: Run integration tests
       run: |
         cargo test --lib --no-run
-        cargo test --test "*" -- --nocapture --test-threads=1
+        cargo test --test "*" -- --no-capture --test-threads=1
         cargo test --doc
 
-  test-windows-ipv4:
+  windows-ipv4:
     runs-on: windows-2022
     
     steps:
