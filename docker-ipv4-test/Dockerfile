@@ -15,7 +15,7 @@ LABEL description="Windows container for IPv4 sACN testing"
 
 # Set up environment variables for MSYS2 installation
 RUN powershell -Command $env:MSYS2_PATH=\"C:\\msys64\\\"; \
-    $env:PATH=\"$env:MSYS2_PATH\\usr\\bin;$MSYS2_PATH\\mingw64\\bin;$env:PATH\\\"; \
+    $env:PATH=\"$env:MSYS2_PATH\\usr\\bin;$env:MSYS2_PATH\\mingw64\\bin;$env:PATH\\\"; \
     powershell -Command echo $env:PATH
 
 # Install MSYS2
@@ -25,7 +25,7 @@ RUN powershell -Command \
     Remove-Item msys2-installer.exe
 
 # Update MSYS2 packages and install necessary tools (e.g., MinGW-w64 toolchain, git)
-RUN $MSYS2_PATH\\usr\\bin\\bash.exe -lc "pacman -Syu --noconfirm && \
+RUN powershell -Command $env:MSYS2_PATH\\usr\\bin\\bash.exe -lc "pacman -Syu --noconfirm && \
     pacman -S --noconfirm --needed base-devel mingw-w64-x86_64-toolchain git"
 
 # Install Rust
