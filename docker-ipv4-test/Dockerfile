@@ -17,10 +17,10 @@ RUN powershell -Command \
 ENV PATH="C:\Users\ContainerAdministrator\.cargo\bin;${PATH}"
 
 # Copy project files
-COPY ../src/ ./src/
-COPY ../Cargo.toml ./
-COPY ../Cargo.lock ./
-COPY ../tests/ ./tests/
+COPY src/ ./src/
+COPY Cargo.toml ./
+COPY Cargo.lock ./
+COPY tests/ ./tests/
 
 # Install required PowerShell modules
 RUN powershell -Command \

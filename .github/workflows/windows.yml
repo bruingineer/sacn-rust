@@ -1,4 +1,4 @@
-name: Rust
+name: windows
 
 on:
   push:
@@ -10,28 +10,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test-linux:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Configure test network interfaces
-      run: |
-        sudo ip addr add 192.168.0.6/24 dev eth0
-        sudo ip addr add 192.168.0.7/24 dev eth0
-        sudo ip addr add 192.168.0.8/24 dev eth0
-        sudo ip link set dev lo up
-    # - name: Run tests
-    #   run: cargo test --lib --verbose --no-run
-    - name: Run integration tests
-      run: |
-        cargo test --test "*" -- --nocapture --test-threads=1
-        cargo test --doc
-        cargo test ipv4 -- --ignored --test-threads=1 --nocapture
-
   test-windows:
     runs-on: windows-latest
 
@@ -39,16 +17,11 @@ jobs:
     - uses: actions/checkout@v4
     - name: Build
       run: cargo build --verbose
-    - name: Configure test network interfaces
-      run: |
-        sudo ip addr add 192.168.0.6/24 dev eth0
-        sudo ip addr add 192.168.0.7/24 dev eth0
-        sudo ip addr add 192.168.0.8/24 dev eth0
-        sudo ip link set dev lo up
     # - name: Run tests
     #   run: cargo test --lib --verbose --no-run
     - name: Run integration tests
       run: |
+        cargo test --lib --no-run
         cargo test --test "*" -- --nocapture --test-threads=1
         cargo test --doc
 
