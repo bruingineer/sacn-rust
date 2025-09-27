@@ -5,13 +5,13 @@ FROM mcr.microsoft.com/windows/server:ltsc2022
 LABEL description="Windows container for IPv4 sACN testing"
 
 # Set working directory to the root of the project
-WORKDIR C:\project
+WORKDIR /app
 
 # Install Rust using rustup
-RUN powershell -Command \
-    Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe; \
-    Start-Process -Wait -FilePath .\rustup-init.exe -ArgumentList '-y'; \
-    Remove-Item rustup-init.exe
+# RUN powershell -Command \
+#     Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe; \
+#     Start-Process -Wait -FilePath .\rustup-init.exe -ArgumentList '-y'; \
+#     Remove-Item rustup-init.exe
 
 # Add Rust binaries to PATH
 ENV PATH="C:\Users\ContainerAdministrator\.cargo\bin;${PATH}"
