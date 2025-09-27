@@ -55,24 +55,39 @@ jobs:
         cargo test --doc
 
   windows-ipv4:
-    runs-on: windows-2022
-    
+    runs-on: windows-latest
+
     steps:
     - uses: actions/checkout@v4
-
-    - name: Build test container
-      shell: powershell
-      run: docker build --file docker-ipv4-test/Dockerfile --isolation=hyperv -t ipv4-test . #|
-    # cd docker-ipv4-test
-    #    docker build --file docker-ipv4-test/Dockerfile --isolation=hyperv -t ipv4-test .
-    
-    - name: Run tests in container
+    - name: Run integration tests
       shell: powershell
       run: |
-        docker run --rm `
-          --isolation=hyperv `
-          -e IP_ADDRESS_1=192.168.0.6 `
-          -e IP_ADDRESS_2=192.168.0.7 `
-          -e IP_ADDRESS_3=192.168.0.8 `
-          -e PREFIX_LENGTH=24 `
-          ipv4-test
+        $env:IP_ADDRESS_1=192.168.0.6
+        $env:IP_ADDRESS_2=192.168.0.7
+        $env:IP_ADDRESS_3=192.168.0.8
+        $env:PPREFIX_LENGTH=24
+        ./docker-ipv4-test/scripts/configure-ip.ps1
+        ./docker-ipv4-test/scripts/run-tests.ps1
+
+  # windows-ipv4:
+  #   runs-on: windows-2022
+    
+  #   steps:
+  #   - uses: actions/checkout@v4
+
+  #   - name: Build test container
+  #     shell: powershell
+  #     run: docker build --file docker-ipv4-test/Dockerfile --isolation=hyperv -t ipv4-test . #|
+  #   # cd docker-ipv4-test
+  #   #    docker build --file docker-ipv4-test/Dockerfile --isolation=hyperv -t ipv4-test .
+    
+  #   - name: Run tests in container
+  #     shell: powershell
+  #     run: |
+  #       docker run --rm `
+  #         --isolation=hyperv `
+  #         -e IP_ADDRESS_1=192.168.0.6 `
+  #         -e IP_ADDRESS_2=192.168.0.7 `
+  #         -e IP_ADDRESS_3=192.168.0.8 `
+  #         -e PREFIX_LENGTH=24 `
+  #         ipv4-test
