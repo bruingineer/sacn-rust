@@ -19,7 +19,7 @@ RUN powershell -Command $env:MSYS2_PATH=\"C:\\msys64\\\"
 # Install MSYS2
 RUN powershell -Command \
     Invoke-WebRequest -Uri https://repo.msys2.org/distrib/x86_64/msys2-x86_64-20250830.exe -OutFile msys2-installer.exe; \
-    Start-Process -FilePath msys2-installer.exe -ArgumentList '/S', '/D=$MSYS2_PATH' -Wait; \
+    Start-Process -FilePath msys2-installer.exe -ArgumentList '/S', '/D=$env:MSYS2_PATH' -Wait; \
     Remove-Item msys2-installer.exe
 
 RUN powershell -Command $env:PATH=\"$env:MSYS2_PATH\\usr\\bin;$env:MSYS2_PATH\\mingw64\\bin;$env:PATH\"; \
