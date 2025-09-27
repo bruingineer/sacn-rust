@@ -1,5 +1,5 @@
 # Start with Windows Server Core as the base image
-FROM mcr.microsoft.com/windows/servercore:ltsc2019
+FROM mcr.microsoft.com/windows:ltsc2019
 
 # Set metadata for the image
 LABEL description="Windows container for IPv4 sACN testing"
