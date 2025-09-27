@@ -14,13 +14,13 @@ LABEL description="Windows container for IPv4 sACN testing"
 
 
 # Set up environment variables for MSYS2 installation
-RUN powershell -Command $env:MSYS2_PATH=\"C:\\msys64\\\"
-RUN powershell -Command $env:PATH=\"$env:MSYS2_PATH\\usr\\bin;$MSYS2_PATH\\mingw64\\bin;$env:PATH\\\"
-RUN echo %PATH%
+RUN powershell -Command $env:MSYS2_PATH=\"C:\\msys64\\\"; \
+    $env:PATH=\"$env:MSYS2_PATH\\usr\\bin;$MSYS2_PATH\\mingw64\\bin;$env:PATH\\\"; \
+    powershell -Command echo $env:PATH
 
 # Install MSYS2
 RUN powershell -Command \
-    Invoke-WebRequest -Uri https://repo.msys2.org/distrib/x86_64/msys2-x86_64-latest.exe -OutFile msys2-installer.exe; \
+    Invoke-WebRequest -Uri https://repo.msys2.org/distrib/x86_64/msys2-x86_64-20250830.exe -OutFile msys2-installer.exe; \
     Start-Process -FilePath msys2-installer.exe -ArgumentList '/S', '/D=$MSYS2_PATH' -Wait; \
     Remove-Item msys2-installer.exe
 
