@@ -6,7 +6,7 @@ LABEL description="Windows container for IPv4 sACN testing"
 
 # Download and install Build Tools for Visual Studio 2022 for native desktop workload.
 ADD https://aka.ms/vs/17/release/vs_buildtools.exe C:\\TEMP\\vs_buildtools.exe
-RUN C:\\TEMP\\Install.cmd C:\\TEMP\\vs_buildtools.exe --quiet --wait --norestart --nocache \
+RUN C:\\TEMP\\vs_buildtools.exe --quiet --wait --norestart --nocache \
     --channelUri C:\\TEMP\\VisualStudio.chman \
     --installChannelUri C:\\TEMP\\VisualStudio.chman \
     --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended \
