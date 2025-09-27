@@ -69,7 +69,7 @@ jobs:
         Import-Module "$env:ChocolateyInstall/helpers/chocolateyInstaller.psm1"
         refreshenv
         $ips = @("192.168.0.6","192.168.0.7","192.168.0.8")
-        $devcon = (Get-Command devcon.exe).Source
+        $devcon = (Get-Command devcon64.exe).Source
         # Create three Microsoft KM-TEST Loopback Adapters
         1..3 | ForEach-Object {
           & $devcon install "$env:WINDIR\Inf\netloop.inf" *msloop
