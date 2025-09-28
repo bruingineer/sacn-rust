@@ -84,12 +84,17 @@ jobs:
         for ($i = 0; $i -lt 3; $i++) {
           $alias = "Loopback$($i+1)"
           Rename-NetAdapter -Name $loopbacks[$i].Name -NewName $alias
+          Set-NetConnectionProfile -InterfaceAlias $alias -NetworkCategory Private
           # Assign /24 on each NIC (adjust as needed)
           New-NetIPAddress -InterfaceAlias $alias -IPAddress $ips[$i] -PrefixLength 24 | Out-Null
         }
+        Start-Sleep -Seconds 3
 
         Write-Host "Configured:"
         Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.InterfaceAlias -like "Loopback*"} | Format-Table InterfaceAlias,IPAddress,PrefixLength
     - name: Run tests
       shell: powershell
-      run: cargo test ipv4 -- --ignored --no-capture --test-threads=1
+      env:
+        RUST_BACKTRACE: 1
+        RUST_LOG: trace
+      run: cargo test test_ansi_e131_appendix_b_runthrough_ipv4 -- --ignored --no-capture --test-threads=1
