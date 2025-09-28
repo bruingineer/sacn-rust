@@ -2924,6 +2924,7 @@ fn test_ansi_e131_appendix_b_runthrough_ipv4() {
     let snd_thread = thread::spawn(move || {
         let ip: SocketAddr = SocketAddr::new(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap(), ACN_SDT_MULTICAST_PORT + 1);
         let mut src = SacnSource::with_cid_ip(source_name, src_cid, ip).unwrap();
+        src.set_multicast_loop_v4(true).unwrap();
 
         src.register_universes(&data_universes).unwrap();
         src.register_universe(sync_universe).unwrap();
