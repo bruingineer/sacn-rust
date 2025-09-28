@@ -36,6 +36,7 @@ jobs:
         sudo ip addr add 192.168.0.7/24 dev lo
         sudo ip addr add 192.168.0.8/24 dev lo
         sudo ip link set dev lo up
+        sudo ip route add 224.0.0.0/4 dev lo || true
         ip addr show dev lo
     - name: Run ipv4 tests
       run: cargo test test_ansi_e131_appendix_b_runthrough_ipv4 -- --ignored --test-threads=1 --no-capture --nocapture
