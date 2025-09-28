@@ -2900,25 +2900,6 @@ fn test_send_sync_timeout(){
 #[test]
 #[ignore]
 fn test_ansi_e131_appendix_b_runthrough_ipv4() {
-    if cfg!(target_os = "windows") {
-        unsafe {
-            #[link(name = "kernel32")]
-            unsafe extern "system" {
-                fn GetCurrentThreadStackLimits(low: *mut usize, high: *mut usize);
-            }
-            let mut low = 0usize;
-            let mut high = 0usize;
-            GetCurrentThreadStackLimits(&mut low, &mut high);
-            let size = high - low;
-            println!(
-                "Windows: low={:#x}, high={:#x}, size={} bytes (~{} MiB)",
-                low,
-                high,
-                size,
-                size / 1024 / 1024
-            );
-        }
-    }
     // The number of set of (data packets + sync packet) to send.
     const SYNC_PACKET_COUNT: usize = 5;
 
