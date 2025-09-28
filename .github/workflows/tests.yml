@@ -78,15 +78,24 @@ jobs:
         # Grab the new adapters, rename them, and assign one IP each
         $loopbacks = Get-NetAdapter | Where {$_.InterfaceDescription -like "*Loopback*"} | Sort-Object ifIndex
         Get-NetIPAddress | Where {$_.InterfaceDescription -like "*Loopback*"} | Format-Table InterfaceAlias,InterfaceDescription,IPAddress,PrefixLength
-        Start-Sleep -Seconds 30
+
         if ($loopbacks.Count -lt 3) { throw "Expected 3 loopback adapters, found $($loopbacks.Count)" }
-        echo "waiting an arbitrary time for nic to stop identifying"
+        
+        $aliases = @()
         for ($i = 0; $i -lt 3; $i++) {
           $alias = "Loopback$($i+1)"
+          $aliases += $alias
           Rename-NetAdapter -Name $loopbacks[$i].Name -NewName $alias
-          Set-NetConnectionProfile -InterfaceAlias $alias -NetworkCategory Private
           # Assign /24 on each NIC (adjust as needed)
           New-NetIPAddress -InterfaceAlias $alias -IPAddress $ips[$i] -PrefixLength 24 | Out-Null
+        }
+
+        # Open firewall on those adapters regardless of profile/identifying state
+        # (InterfaceAlias scoping beats Public-profile blocks)
+        if (-not (Get-NetFirewallRule -DisplayName "Allow Loopbacks All In" -ErrorAction SilentlyContinue)) {
+          New-NetFirewallRule -DisplayName "Allow Loopbacks All In" `
+            -Direction Inbound -Action Allow -Protocol Any `
+            -InterfaceAlias $aliases -Profile Any | Out-Null
         }
         Start-Sleep -Seconds 3
 
