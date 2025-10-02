@@ -1214,7 +1214,6 @@ impl SacnNetworkReceiver {
         buf: &'a mut [u8; RCV_BUF_DEFAULT_SIZE],
     ) -> Result<AcnRootLayerProtocol<'a>> {
         // use read() for the windows impl, since windows does not like using read_exact()
-        // let n = ?;
         if let Ok(n) = self.socket.read(buf) && n > RCV_BUF_DEFAULT_SIZE {
             bail!(TooManyBytesRead(n, RCV_BUF_DEFAULT_SIZE));
         }
