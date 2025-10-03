@@ -38,7 +38,7 @@ use socket2::{Socket, Domain, Type};
 /// This is achieved by assigning multiple static IP's to the test machine and theses IP's are specified below.
 /// Theses must be changed depending on the network that the test machine is on.
 // pub const TEST_NETWORK_INTERFACE_IPV4: [&'static str; 3] = ["192.168.0.6", "192.168.0.7", "192.168.0.8"];
-pub const TEST_NETWORK_INTERFACE_IPV4: [&'static str; 3] = ["192.168.1.250", "192.168.1.251", "192.168.1.252"];
+pub const TEST_NETWORK_INTERFACE_IPV4: [&'static str; 3] = ["192.168.0.6", "192.168.0.7", "192.168.0.8"];
 
 
 pub const TEST_DATA_PARTIAL_CAPACITY_UNIVERSE: [u8; 313] = [0,
