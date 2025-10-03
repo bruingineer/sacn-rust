@@ -43,6 +43,16 @@ pub mod errors {
         // Allow UUID library to be used with error system.
         #[error("Uuid error occurred: {0}")]
         Uuid(#[from] uuid::Error),
+        
+        /// Returned to indicate that too many bytes were read to fit into supplied buffer.
+        ///
+        /// # Arguments
+        /// usize: number of bytes read.
+        /// 
+        /// usize: size of buffer.
+        ///
+        #[error("The given buffer fits {0} bytes, but {1} bytes were read.")]
+        TooManyBytesRead(usize, usize),
 
         // All parse/pack errors live within the same SacnError group as described in sacn_parse_packet_error.
         #[error("SacnParsePack error occurred: {0}")]
@@ -51,7 +61,7 @@ pub mod errors {
         /// Returned to indicate that an invalid or malformed source name was used.
         ///
         /// # Arguments
-        /// msg: A string describing why the source name is malformed.
+        /// String: A string describing why the source name is malformed.
         ///
         #[error("The given source name was malformed and couldn't be used, msg: {0}")]
         MalformedSourceName(String),

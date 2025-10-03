@@ -1185,8 +1185,11 @@ impl SacnNetworkReceiver {
         &mut self,
         buf: &'a mut [u8; RCV_BUF_DEFAULT_SIZE],
     ) -> Result<AcnRootLayerProtocol<'a>> {
-        self.socket.read(buf)?;
-
+        // use read() for the windows impl, since windows does not like using read_exact()
+        let n = self.socket.read(buf)?;
+        if n > RCV_BUF_DEFAULT_SIZE {
+            return Err(SacnError::TooManyBytesRead(n, buf.len()))
+        }
         AcnRootLayerProtocol::parse(buf)
     }
 
@@ -1332,8 +1335,11 @@ impl SacnNetworkReceiver {
         &mut self,
         buf: &'a mut [u8; RCV_BUF_DEFAULT_SIZE],
     ) -> Result<AcnRootLayerProtocol<'a>> {
-        self.socket.read_exact(buf)?;
-
+        // use read() since read_exact() was not passing the tests.
+        let n = self.socket.read(buf)?;
+        if n > RCV_BUF_DEFAULT_SIZE {
+            return Err(SacnError::TooManyBytesRead(n, buf.len()))
+        }
         Ok(AcnRootLayerProtocol::parse(buf)?)
     }
 
