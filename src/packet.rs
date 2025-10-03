@@ -500,6 +500,7 @@ macro_rules! impl_acn_root_layer_protocol {
                 self.pdu.pack(&mut buf[16..])
             }
 
+            #[allow(clippy::len_without_is_empty)]
             /// The length of the packet when packed.
             pub fn len(&self) -> usize {
                 // Preamble Field Size (Bytes)

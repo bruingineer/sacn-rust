@@ -1241,19 +1241,17 @@ impl SacnNetworkReceiver {
     /// Will return an Io error if cannot join the universes corresponding multicast group address.
     ///
     fn listen_multicast_universe(&self, universe: u16) -> Result<()> {
-        let multicast_addr;
-
-        if self.addr.is_ipv4() {
-            multicast_addr = universe_to_ipv4_multicast_addr(universe)?;
+        let multicast_addr = if self.addr.is_ipv4() {
+            universe_to_ipv4_multicast_addr(universe)? // "Failed to convert universe to IPv4 multicast addr"
         } else {
-            multicast_addr = universe_to_ipv6_multicast_addr(universe)?;
-        }
+            universe_to_ipv6_multicast_addr(universe)? // "Failed to convert universe to IPv6 multicast addr"
+        };
 
-        Ok(join_unix_multicast(
+        join_unix_multicast(
             &self.socket,
             multicast_addr,
             self.addr.ip(),
-        )?)
+        )
     }
 
     /// Removes this SacnNetworkReceiver from the multicast group which corresponds to the given universe.
@@ -1263,19 +1261,17 @@ impl SacnNetworkReceiver {
     /// IPv4 or IPv6 address. See packet::universe_to_ipv4_multicast_addr and packet::universe_to_ipv6_multicast_addr.
     ///
     fn mute_multicast_universe(&mut self, universe: u16) -> Result<()> {
-        let multicast_addr;
-
-        if self.addr.is_ipv4() {
-            multicast_addr = universe_to_ipv4_multicast_addr(universe)?;
+        let multicast_addr = if self.addr.is_ipv4() {
+            universe_to_ipv4_multicast_addr(universe)?
         } else {
-            multicast_addr = universe_to_ipv6_multicast_addr(universe)?;
-        }
+            universe_to_ipv6_multicast_addr(universe)?
+        };
 
-        Ok(leave_unix_multicast(
+        leave_unix_multicast(
             &self.socket,
             multicast_addr,
             self.addr.ip(),
-        )?)
+        )
     }
 
     /// Sets the value of the is_multicast_enabled flag to the given value.
@@ -1299,14 +1295,14 @@ impl SacnNetworkReceiver {
     /// This flag is set when the receiver is created as not all environments currently support IP multicast.
     /// E.g. IPv6 Windows IP Multicast is currently unsupported.
     fn is_multicast_enabled(&self) -> bool {
-        return self.is_multicast_enabled;
+        self.is_multicast_enabled
     }
 
     /// If set to true then only receive over IPv6. If false then receiving will be over both IPv4 and IPv6.
     /// This will return an error if the SacnReceiver wasn't created using an IPv6 address to bind to.
     fn set_only_v6(&mut self, val: bool) -> Result<()> {
         if self.addr.is_ipv4() {
-            return Err(SacnError::IpVersionError());
+            Err(SacnError::IpVersionError())
         } else {
             Ok(self.socket.set_only_v6(val)?)
         }
@@ -1340,7 +1336,7 @@ impl SacnNetworkReceiver {
         if n > RCV_BUF_DEFAULT_SIZE {
             return Err(SacnError::TooManyBytesRead(n, buf.len()))
         }
-        Ok(AcnRootLayerProtocol::parse(buf)?)
+        AcnRootLayerProtocol::parse(buf)
     }
 
     /// Set the timeout for the recv operation.
@@ -1497,7 +1493,7 @@ fn join_unix_multicast(socket: &Socket, addr: SockAddr, interface_addr: IpAddr) 
             Some(a) => match interface_addr {
                 IpAddr::V4(ref interface_v4) => {
                     socket
-                        .join_multicast_v4(a.ip(), &interface_v4)
+                        .join_multicast_v4(a.ip(), interface_v4)
                         .map_err(|e| {
                             SacnError::Io(std::io::Error::new(
                                 e.kind(),
@@ -1554,7 +1550,7 @@ fn leave_unix_multicast(socket: &Socket, addr: SockAddr, interface_addr: IpAddr)
             Some(a) => match interface_addr {
                 IpAddr::V4(ref interface_v4) => {
                     socket
-                        .leave_multicast_v4(a.ip(), &interface_v4)
+                        .leave_multicast_v4(a.ip(), interface_v4)
                         .map_err(|e| {
                             SacnError::Io(std::io::Error::new(
                                 e.kind(),
@@ -1895,7 +1891,7 @@ impl SequenceNumbering {
     ///
     /// universe: The universe being sent by the source from which to remove the sequence numbers.
     ///
-    fn remove_seq_numbers<'a>(&mut self, src_cid: Uuid, universe: u16) -> Result<()> {
+    fn remove_seq_numbers(&mut self, src_cid: Uuid, universe: u16) -> Result<()> {
         remove_source_universe_seq(&mut self.data_sequences, src_cid, universe)?;
         remove_source_universe_seq(&mut self.sync_sequences, src_cid, universe)
     }
