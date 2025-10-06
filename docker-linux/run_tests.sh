@@ -8,6 +8,7 @@ ip route add 239.255.0.0/8 dev lo || true
 
 ip link set dev lo multicast on
 
+
 ip a show dev lo
 
 echo "net.ipv4.conf.all.rp_filter = 0" > /etc/sysctl.conf
