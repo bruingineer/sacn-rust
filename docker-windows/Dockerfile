@@ -1,5 +1,6 @@
 # Start with Windows Server Core as the base image
-FROM mcr.microsoft.com/windows/server:ltsc2022
+# FROM mcr.microsoft.com/windows/server:ltsc2022
+FROM mcr.microsoft.com/windows:ltsc2019
 
 # Set metadata for the image
 LABEL description="Windows container for IPv4 sACN testing"
@@ -11,19 +12,24 @@ LABEL description="Windows container for IPv4 sACN testing"
 #     --installChannelUri C:\\TEMP\\VisualStudio.chman \
 #     --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended \
 #     --installPath C:\\BuildTools
-
-
+ADD https://community.chocolatey.org/install.ps1 install.ps1
+RUN powershell -Command gc install.ps1
+RUN powershell -Command Set-ExecutionPolicy Bypass; \
+    ./install.ps1
+    # [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; \
+    # iex ((New-Object System.Net.WebClient).DownloadString(''))
+RUN choco install -y msys2
 # Set up environment variables for MSYS2 installation
-RUN powershell -Command $env:MSYS2_PATH=\"C:\\msys64\\\"
+# RUN powershell -Command $env:MSYS2_PATH=\"C:\\msys64\\\"
 
-# Install MSYS2
-RUN powershell -Command \
-    Invoke-WebRequest -Uri https://repo.msys2.org/distrib/x86_64/msys2-x86_64-20250830.exe -OutFile msys2-installer.exe; \
-    Start-Process -FilePath msys2-installer.exe -ArgumentList '/S', '/D=$env:MSYS2_PATH' -Wait; \
-    Remove-Item msys2-installer.exe
+# # Install MSYS2
+# RUN powershell -Command \
+#     Invoke-WebRequest -Uri https://repo.msys2.org/distrib/x86_64/msys2-x86_64-20250830.exe -OutFile msys2-installer.exe; \
+#     Start-Process -FilePath msys2-installer.exe -ArgumentList '/S', '/D=$env:MSYS2_PATH' -Wait; \
+#     Remove-Item msys2-installer.exe
 
-RUN powershell -Command $env:PATH=\"$env:MSYS2_PATH\\usr\\bin;$env:MSYS2_PATH\\mingw64\\bin;$env:PATH\"; \
-    echo $env:PATH
+# RUN powershell -Command $env:PATH=\"$env:MSYS2_PATH\\usr\\bin;$env:MSYS2_PATH\\mingw64\\bin;$env:PATH\"; \
+#     echo $env:PATH
 
 # Update MSYS2 packages and install necessary tools (e.g., MinGW-w64 toolchain, git)
 RUN powershell -Command $env:MSYS2_PATH\\usr\\bin\\bash.exe -lc "pacman -Syu --noconfirm && \
