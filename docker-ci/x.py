@@ -1,0 +1,234 @@
+#!/usr/bin/env python3
+
+from collections import namedtuple
+from urllib import request
+import os
+import subprocess
+import sys
+
+rustup_version = "1.28.2"
+
+Channel = namedtuple("Channel", ["name", "rust_version"])
+stable = Channel("stable", "1.90.0")
+supported_channels = [
+    stable
+]
+
+DebianArch = namedtuple("DebianArch", ["bashbrew", "dpkg", "qemu", "rust"])
+
+debian_lts_arches = [
+    DebianArch("amd64", "amd64", "linux/amd64", "x86_64-unknown-linux-gnu"),
+    DebianArch("arm32v7", "armhf", "linux/arm/v7", "armv7-unknown-linux-gnueabihf"),
+    DebianArch("arm64v8", "arm64", "linux/arm64", "aarch64-unknown-linux-gnu"),
+    DebianArch("i386", "i386", "linux/386", "i686-unknown-linux-gnu"),
+]
+
+debian_trixie_arches = [
+    DebianArch("riscv64", "riscv64", "linux/riscv64", "riscv64gc-unknown-linux-gnu"),
+]
+
+DebianVariant = namedtuple("DebianVariant", ["name", "arches"])
+
+debian_variants = [
+    DebianVariant("trixie", debian_lts_arches + debian_trixie_arches),
+]
+
+default_debian_variant = "trixie"
+
+# (Windows Server tag, Windows SDK build number)
+# The build number is specifically used to select the right Windows 10 SDK to
+# install from the Visual Studio Build Tools installer. See
+# https://docs.microsoft.com/en-us/visualstudio/install/workload-component-id-vs-build-tools?view=vs-2019#c-build-tools
+# for the build version numbers.
+windows_servercore_versions = [
+    ("1809", "17763"),
+]
+
+def rustup_hash(arch):
+    url = f"https://static.rust-lang.org/rustup/archive/{rustup_version}/{arch}/rustup-init.sha256"
+    with request.urlopen(url) as f:
+        return f.read().decode('utf-8').split()[0]
+    
+def rustup_hash_windows(arch):
+    url = f"https://static.rust-lang.org/rustup/archive/{rustup_version}/{arch}/rustup-init.exe.sha256"
+    with request.urlopen(url) as f:
+        return f.read().decode('utf-8').split()[0]
+
+def read_file(file):
+    with open(file, "r") as f:
+        return f.read()
+
+def write_file(file, contents):
+    dir = os.path.dirname(file)
+    if dir and not os.path.exists(dir):
+        os.makedirs(dir)
+    with open(file, "w") as f:
+        f.write(contents)
+
+def update_debian():
+    end = '        *) echo >&2 "unsupported architecture: ${dpkgArch}"; exit 1 ;; \\\n'
+    end += '    esac'
+
+    template = read_file("Dockerfile-debian.template")
+
+    for variant in debian_variants:
+        arch_case = 'dpkgArch="$(dpkg --print-architecture)"; \\\n'
+        arch_case += '    case "${dpkgArch##*-}" in \\\n'
+        for arch in variant.arches:
+            hash = rustup_hash(arch.rust)
+            arch_case += f"        {arch.dpkg}) rustArch='{arch.rust}'; rustupSha256='{hash}' ;; \\\n"
+        arch_case += end
+
+        for channel in supported_channels:
+            rendered = template \
+                .replace("%%RUST-VERSION%%", channel.rust_version) \
+                .replace("%%RUSTUP-VERSION%%", rustup_version) \
+                .replace("%%DEBIAN-SUITE%%", variant.name) \
+                .replace("%%ARCH-CASE%%", arch_case)
+            write_file(f"{channel.name}/{variant.name}/Dockerfile", rendered)
+
+def update_windows():
+    template = read_file("Dockerfile-windows-msvc.template")
+    for channel in supported_channels:
+        for version, build in windows_servercore_versions:
+            rendered = template \
+                .replace("%%RUST-VERSION%%", channel.rust_version) \
+                .replace("%%RUSTUP-VERSION%%", rustup_version) \
+                .replace("%%WINDOWS-VERSION%%", version) \
+                .replace("%%SDK-BUILD%%", build) \
+                .replace("%%RUSTUP-SHA256%%", rustup_hash_windows("x86_64-pc-windows-msvc"))
+            write_file(f"{channel.rust_version}/windowsservercore-{version}/msvc/Dockerfile", rendered)
+
+        template = read_file("Dockerfile-windows-gnu.template")
+        for version, build in windows_servercore_versions:
+            rendered = template \
+                .replace("%%RUST-VERSION%%", channel.rust_version) \
+                .replace("%%RUSTUP-VERSION%%", rustup_version) \
+                .replace("%%WINDOWS-VERSION%%", version) \
+                .replace("%%RUSTUP-SHA256%%", rustup_hash_windows("x86_64-pc-windows-gnu"))
+            write_file(f"{channel.rust_version}/windowsservercore-{version}/gnu/Dockerfile", rendered)
+
+def update_ci():
+    file = ".github/workflows/ci.yml"
+    config = read_file(file)
+
+    marker = "#RUST_VERSION\n"
+    split = config.split(marker)
+    rendered = split[0] + marker + f"      RUST_VERSION: {stable.rust_version}\n" + marker + split[2]
+
+    versions = ""
+    for variant in debian_variants:
+        versions += f"          - name: {variant.name}\n"
+        versions += f"            variant: {variant.name}\n"
+
+    for version, build in windows_servercore_versions:
+        versions += f"          - name: windowsservercore-{version}.{build}-msvc\n"
+        versions += f"            variant: windowsservercore-{version}/msvc\n"
+
+    for version, build in windows_servercore_versions:
+        versions += f"          - name: windowsservercore-{version}.{build}-gnu\n"
+        versions += f"            variant: windowsservercore-{version}/gnu\n"
+
+    marker = "#VERSIONS\n"
+    split = rendered.split(marker)
+    rendered = split[0] + marker + versions + marker + split[2]
+    write_file(file, rendered)
+
+def update_mirror_stable_ci():
+    file = ".github/workflows/mirror_stable.yml"
+    config = read_file(file)
+
+    versions = ""
+    for variant in debian_variants:
+        tags = []
+        for version_tag in version_tags():
+            tags.append(f"{version_tag}-{variant.name}")
+        tags.append(variant.name)
+        if variant.name == default_debian_variant:
+            for version_tag in version_tags():
+                tags.append(version_tag)
+            tags.append("latest")
+
+        versions += f"          - name: {variant.name}\n"
+        versions += "            tags: |\n"
+        for tag in tags:
+            versions += f"              {tag}\n"
+
+    marker = "#VERSIONS\n"
+    split = config.split(marker)
+    rendered = split[0] + marker + versions + marker + split[2]
+    write_file(file, rendered)
+
+def file_commit(file):
+    return subprocess.run(
+            ["git", "log", "-1", "--format=%H", "HEAD", "--", file],
+            capture_output = True) \
+        .stdout \
+        .decode('utf-8') \
+        .strip()
+
+def version_tags():
+    parts = stable.rust_version.split(".")
+    tags = []
+    for i in range(len(parts)):
+        tags.append(".".join(parts[:i + 1]))
+    return tags
+
+def single_library(tags, architectures, dir):
+    return f"""
+Tags: {", ".join(tags)}
+Architectures: {", ".join(architectures)}
+GitCommit: {file_commit(os.path.join(dir, "Dockerfile"))}
+Directory: {dir}
+"""
+
+def generate_stackbrew_library():
+    commit = file_commit("x.py")
+
+    library = f"""\
+# this file is generated via https://github.com/rust-lang/docker-rust/blob/{commit}/x.py
+
+Maintainers: Steven Fackler <sfackler@gmail.com> (@sfackler),
+             Scott Schafer <schaferjscott@gmail.com> (@Muscraft),
+             Jakub Beránek <berykubik@gmail.com> (@kobzol)
+GitRepo: https://github.com/rust-lang/docker-rust.git
+"""
+
+    for variant in debian_variants:
+        tags = []
+        for version_tag in version_tags():
+            tags.append(f"{version_tag}-{variant.name}")
+        tags.append(variant.name)
+        if variant.name == default_debian_variant:
+            for version_tag in version_tags():
+                tags.append(version_tag)
+            tags.append("latest")
+
+        arches = variant.arches[:]
+
+        library += single_library(
+                tags,
+                map(lambda a: a.bashbrew, arches),
+                os.path.join(stable.name, variant.name))
+
+    print(library)
+
+def usage():
+    print(f"Usage: {sys.argv[0]} update|generate-stackbrew-library")
+    sys.exit(1)
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        usage()
+
+    task = sys.argv[1]
+    if task == "update":
+        update_debian()
+        update_windows()
+        update_ci()
+        # update_mirror_stable_ci()
+    elif task == "generate-stackbrew-library":
+        pass
+        # generate_stackbrew_library()
+    else:
+        usage()

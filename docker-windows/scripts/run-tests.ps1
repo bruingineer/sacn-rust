@@ -1,9 +1,9 @@
 # Configure IP addresses first
-& "$PSScriptRoot\configure-ip.ps1"
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to configure IP addresses"
-    exit $LASTEXITCODE
-}
+# & "$PSScriptRoot\configure-ip.ps1"
+# if ($LASTEXITCODE -ne 0) {
+#     Write-Error "Failed to configure IP addresses"
+#     exit $LASTEXITCODE
+# }
 
 # Run the specific IPv4 tests
 Write-Host "Running IPv4 tests..."

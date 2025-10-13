@@ -1,56 +1,69 @@
 # Start with Windows Server Core as the base image
 # FROM mcr.microsoft.com/windows/server:ltsc2022
-FROM mcr.microsoft.com/windows:ltsc2019
+# FROM mcr.microsoft.com/windows:ltsc2019
 
-# Set metadata for the image
-LABEL description="Windows container for IPv4 sACN testing"
+# escape=\
 
-# Download and install Build Tools for Visual Studio 2022 for native desktop workload.
-# ADD https://aka.ms/vs/17/release/vs_buildtools.exe C:\\TEMP\\vs_buildtools.exe
-# RUN C:\\TEMP\\vs_buildtools.exe --quiet --wait --norestart --nocache \
-#     --channelUri C:\\TEMP\\VisualStudio.chman \
-#     --installChannelUri C:\\TEMP\\VisualStudio.chman \
-#     --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended \
-#     --installPath C:\\BuildTools
-ADD https://community.chocolatey.org/install.ps1 install.ps1
-RUN powershell -Command gc install.ps1
-RUN powershell -Command Set-ExecutionPolicy Bypass; \
-    ./install.ps1
-    # [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; \
-    # iex ((New-Object System.Net.WebClient).DownloadString(''))
-RUN choco install -y msys2
-# Set up environment variables for MSYS2 installation
-# RUN powershell -Command $env:MSYS2_PATH=\"C:\\msys64\\\"
+FROM mcr.microsoft.com/windows/servercore:1809
 
-# # Install MSYS2
-# RUN powershell -Command \
-#     Invoke-WebRequest -Uri https://repo.msys2.org/distrib/x86_64/msys2-x86_64-20250830.exe -OutFile msys2-installer.exe; \
-#     Start-Process -FilePath msys2-installer.exe -ArgumentList '/S', '/D=$env:MSYS2_PATH' -Wait; \
-#     Remove-Item msys2-installer.exe
+SHELL ["powershell.exe", "-NoLogo", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 
-# RUN powershell -Command $env:PATH=\"$env:MSYS2_PATH\\usr\\bin;$env:MSYS2_PATH\\mingw64\\bin;$env:PATH\"; \
-#     echo $env:PATH
+ENV RUSTUP_HOME=C:\\rustup \
+    CARGO_HOME=C:\\cargo \
+    RUST_VERSION=1.90.0
 
-# Update MSYS2 packages and install necessary tools (e.g., MinGW-w64 toolchain, git)
-RUN powershell -Command $env:MSYS2_PATH\\usr\\bin\\bash.exe -lc "pacman -Syu --noconfirm && \
-    pacman -S --noconfirm --needed base-devel mingw-w64-x86_64-toolchain git"
+# RUN [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; \
+#     $url = 'https://static.rust-lang.org/rustup/archive/1.28.2/x86_64-pc-windows-gnu/rustup-init.exe'; \
+#     $sha256 = 'ccbfd951d8024856043b3a0c3903a59f39937bce8d3074768b0d3da55f21e817'; \
+#     Invoke-WebRequest -Uri $url -OutFile C:\rustup-init.exe; \
+#     $actual256 = (Get-FileHash rustup-init.exe -Algorithm sha256).Hash; \
+#     if ($actual256 -ne $sha256) { \
+#        Write-Host 'FAILED!'; \
+#        Write-Host ('expected: {0}' -f $sha256); \
+#        Write-Host ('got:      {0}' -f $actual256); \
+#        exit 1; \
+#     }; \
+#     New-Item ${env:CARGO_HOME}\bin -type directory | Out-Null; \
+#     $newPath = ('{0}\bin;{1}' -f ${env:CARGO_HOME}, ${env:PATH}); \
+#     [Environment]::SetEnvironmentVariable('PATH', $newPath, [EnvironmentVariableTarget]::Machine); \
+#     [Environment]::SetEnvironmentVariable('PATH', $newPath, [EnvironmentVariableTarget]::Process); \
+#     C:\rustup-init.exe -y -v --no-modify-path --default-toolchain ${env:RUST_VERSION} --default-host x86_64-pc-windows-gnu; \
+#     Remove-Item C:\rustup-init.exe; \
+#     rustup -V; \
+#     cargo -V; \
+#     rustc -V; \
+#     Write-Host $env:PATH
 
-# Install Rust
-RUN powershell -Command $env:RUSTUP_HOME=\"C:\\.rustup\\\"
-RUN powershell -Command $env:CARGO_HOME=\"C:\\.cargo\\\"
+# # install msys2\
+# ENV MSYS2_HOME=C:\\msys64
 
-# Install Rust using rustup
-RUN powershell -Command \
-    Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe; \
-    Start-Process -Wait -FilePath .\rustup-init.exe -ArgumentList '-y', '--default-toolchain', 'stable', '--target', 'x86_64-pc-windows-gnu'; \
-    Remove-Item rustup-init.exe; \
-    echo $env:PATH
+# RUN [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; \
+#     $url = 'https://repo.msys2.org/distrib/x86_64/msys2-x86_64-20250830.exe'; \
+#     # $sha256 = 'b54705073678d32686a2cc356bb552363429e6ccbabbfeccb6d3cb7ec101e73b'; \
+#     Invoke-WebRequest -Uri $url -OutFile C:\msys2-x86_64-20250830.exe; \
+#     # $actual256 = (Get-FileHash msys2-base.sfx.exe -Algorithm sha256).Hash; \
+#     # if ($actual256 -ne $sha256) { \
+#     #    Write-Host 'FAILED!'; \
+#     #    Write-Host ('expected: {0}' -f $sha256); \
+#     #    Write-Host ('got:      {0}' -f $actual256); \
+#     #    exit 1; \
+#     # }; \
+#     C:\msys2-x86_64-20250830.exe in --confirm-command --accept-messages --root C:/msys64;\
+#     $newPath = ('{0};{0}\mingw64\bin;{0}\usr\bin;{1}' -f ${env:MSYS2_HOME}, ${env:PATH}); \
+#     [Environment]::SetEnvironmentVariable('PATH', $newPath, [EnvironmentVariableTarget]::Machine); \
+#     [Environment]::SetEnvironmentVariable('PATH', $newPath, [EnvironmentVariableTarget]::Process); \
+#     Remove-Item C:\msys2-x86_64-20250830.exe;\ 
+#     Write-Host $env:PATH
 
-# Add Rust binaries to PATH
-# ENV PATH="C:\\rust\\.cargo\\bin;${PATH}"
-RUN powershell -Command $env:PATH=\"$env:CARGO_HOME\\.cargo\\bin;$env:PATH\"
+# RUN pacman --version; \
+#     # pacman-key --populate msys2; \
+#     # pacman-key --init; \
+#     pacman -Syuu --noconfirm; \
+#     pacman -Syuu --noconfirm; \
+#     pacman -Scc --noconfirm
 
-RUN powershell -Command echo $env:PATH
+# RUN pacman -S --noconfirm --needed  base-devel mingw-w64-x86_64-toolchain; \
+#     gcc --version; 
 
 # Set working directory to the root of the project
 WORKDIR /app
@@ -63,21 +76,31 @@ COPY tests/ ./tests/
 
 # Install required PowerShell modules
 # RUN powershell -Command \
-    # Install-Module -Name NetAdapter -Force -SkipPublisherCheck; \
-    # Install-Module -Name NetTCPIP -Force -SkipPublisherCheck
+#     Install-Module -Name NetAdapter -Force -SkipPublisherCheck; \
+#     Install-Module -Name NetTCPIP -Force -SkipPublisherCheck
 
-# Copy test scripts
-COPY docker-windows/scripts/configure-ip.ps1 ./scripts/
-COPY docker-windows/scripts/run-tests.ps1 ./scripts/
-#COPY docker-ipv4-test/tests/ipv4_tests.ps1 ./tests/
+# # Make scripts executable and build
+# RUN Set-ExecutionPolicy Bypass -Scope Process -Force; Write-Host $env:PATH; \
+#     cargo build --verbose --target x86_64-pc-windows-gnu
 
-# Make scripts executable
-RUN powershell -Command \
-    Set-ExecutionPolicy Bypass -Scope Process -Force; \
-    cargo build --verbose --target x86_64-pc-windows-gnu
+# # Copy test scripts
+COPY docker-windows/scripts/ ./scripts/
 
-# Set the entry point to PowerShell
+ENV IP_ADDRESS_1=192.168.0.6 \
+    IP_ADDRESS_2=192.168.0.7 \
+    IP_ADDRESS_3=192.168.0.8 \
+    PREFIX_LENGTH=24
+
+USER ContainerAdministrator
+RUN ./scripts/configure-ip.ps1
+RUN get-netipaddress | where AddressFamily -like "*v4*" | format-table -property interfacealias,ipaddress,type,addressstate
+RUN New-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress "192.168.0.9" -PrefixLength 24
+
+# # Set the entry point to PowerShell
 ENTRYPOINT ["powershell.exe"]
 
-# Default command to run tests via our script
-CMD ["-File", ".\\scripts\\run-tests.ps1"]
+# # Default command to run tests via our script
+CMD ["-command", "get-netipaddress | where AddressFamily -like \"*v4*\" | format-table -property interfacealias,ipaddress,type,addressstate"]
+# CMD ["powershell.exe -Command echo 'hi'"]
+
+

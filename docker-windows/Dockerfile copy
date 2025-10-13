@@ -1,0 +1,107 @@
+# Start with Windows Server Core as the base image
+# FROM mcr.microsoft.com/windows/server:ltsc2022
+# FROM mcr.microsoft.com/windows:ltsc2019
+
+# escape=\
+
+FROM mcr.microsoft.com/windows/servercore:1809
+
+SHELL ["powershell.exe", "-NoLogo", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+ENV RUSTUP_HOME=C:\\rustup \
+    CARGO_HOME=C:\\cargo \
+    RUST_VERSION=1.90.0
+
+RUN [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; \
+    $url = 'https://static.rust-lang.org/rustup/archive/1.28.2/x86_64-pc-windows-gnu/rustup-init.exe'; \
+    $sha256 = 'ccbfd951d8024856043b3a0c3903a59f39937bce8d3074768b0d3da55f21e817'; \
+    Invoke-WebRequest -Uri $url -OutFile C:\rustup-init.exe; \
+    $actual256 = (Get-FileHash rustup-init.exe -Algorithm sha256).Hash; \
+    if ($actual256 -ne $sha256) { \
+       Write-Host 'FAILED!'; \
+       Write-Host ('expected: {0}' -f $sha256); \
+       Write-Host ('got:      {0}' -f $actual256); \
+       exit 1; \
+    }; \
+    New-Item ${env:CARGO_HOME}\bin -type directory | Out-Null; \
+    $newPath = ('{0}\bin;{1}' -f ${env:CARGO_HOME}, ${env:PATH}); \
+    [Environment]::SetEnvironmentVariable('PATH', $newPath, [EnvironmentVariableTarget]::Machine); \
+    [Environment]::SetEnvironmentVariable('PATH', $newPath, [EnvironmentVariableTarget]::Process); \
+    C:\rustup-init.exe -y -v --no-modify-path --default-toolchain ${env:RUST_VERSION} --default-host x86_64-pc-windows-gnu; \
+    Remove-Item C:\rustup-init.exe; \
+    rustup -V; \
+    cargo -V; \
+    rustc -V; \
+    Write-Host $env:PATH
+
+# install msys2\
+# .\msys2-base-x86_64-latest.sfx.exe -y -oC:\
+ENV MSYS2_HOME=C:\\msys64
+
+RUN [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; \
+    $url = 'https://repo.msys2.org/distrib/x86_64/msys2-x86_64-20250830.exe'; \
+    # $sha256 = 'b54705073678d32686a2cc356bb552363429e6ccbabbfeccb6d3cb7ec101e73b'; \
+    Invoke-WebRequest -Uri $url -OutFile C:\msys2-x86_64-20250830.exe; \
+    # $actual256 = (Get-FileHash msys2-base.sfx.exe -Algorithm sha256).Hash; \
+    # if ($actual256 -ne $sha256) { \
+    #    Write-Host 'FAILED!'; \
+    #    Write-Host ('expected: {0}' -f $sha256); \
+    #    Write-Host ('got:      {0}' -f $actual256); \
+    #    exit 1; \
+    # }; \
+    # New-Item ${env:CARGO_HOME}\bin -type directory | Out-Null; \
+    # C:\msys2-base.sfx.exe -y -oC:\; \
+    C:\msys2-x86_64-20250830.exe in --confirm-command --accept-messages --root C:/msys64;\
+    $newPath = ('{0};{0}\mingw64\bin;{0}\usr\bin;{1}' -f ${env:MSYS2_HOME}, ${env:PATH}); \
+    [Environment]::SetEnvironmentVariable('PATH', $newPath, [EnvironmentVariableTarget]::Machine); \
+    [Environment]::SetEnvironmentVariable('PATH', $newPath, [EnvironmentVariableTarget]::Process); \
+    Remove-Item C:\msys2-x86_64-20250830.exe;\ 
+    Write-Host $env:PATH
+
+RUN pacman --version; \
+    # pacman-key --populate msys2; \
+    # pacman-key --init; \
+    pacman -Syuu --noconfirm; \
+    pacman -Syuu --noconfirm; \
+    pacman -Scc --noconfirm
+
+RUN pacman -S --noconfirm --needed  base-devel mingw-w64-x86_64-toolchain; \
+    gcc --version; 
+
+# Set working directory to the root of the project
+WORKDIR /app
+
+# Copy project files
+COPY src/ ./src/
+COPY Cargo.toml ./
+COPY Cargo.lock ./
+COPY tests/ ./tests/
+
+# Install required PowerShell modules
+# RUN powershell -Command \
+#     Install-Module -Name NetAdapter -Force -SkipPublisherCheck; \
+#     Install-Module -Name NetTCPIP -Force -SkipPublisherCheck
+
+# # Make scripts executable and build
+RUN Set-ExecutionPolicy Bypass -Scope Process -Force; Write-Host $env:PATH; \
+    cargo build --verbose --target x86_64-pc-windows-gnu
+
+# # Copy test scripts
+COPY docker-windows/scripts/ ./scripts/
+
+ENV IP_ADDRESS_1=192.168.0.6 \
+    IP_ADDRESS_2=192.168.0.7 \
+    IP_ADDRESS_3=192.168.0.8 \
+    PREFIX_LENGTH=24
+
+USER ContainerAdministrator
+RUN ./scripts/configure-ip.ps1
+
+# # Set the entry point to PowerShell
+ENTRYPOINT ["powershell.exe"]
+
+# # Default command to run tests via our script
+CMD ["-File", ".\\scripts\\run-tests.ps1"]
+# CMD ["powershell.exe -Command echo 'hi'"]
+
+

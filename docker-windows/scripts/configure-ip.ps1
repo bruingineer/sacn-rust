@@ -7,17 +7,19 @@ $ip3 = $env:IP_ADDRESS_3
 $prefixLength = $env:PREFIX_LENGTH
 
 # Get the Ethernet adapter
-$adapter = Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1
+$adapter = "Loopback Pseudo-Interface 2"
+# $adapter = Get-NetAdapter | Where {$_.Name -like "Eth*"} | select -first 1
 echo $adapter
 
 if ($adapter) {
     try {
         # Configure the IP addresses
-        New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip1 -PrefixLength $prefixLength
-        New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip2 -PrefixLength $prefixLength
-        New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip3 -PrefixLength $prefixLength
-        
-        echo "Successfully configured IP addresses:"
+        New-NetIPAddress -InterfaceAlias $adapter -IPAddress $ip1 -PrefixLength $prefixLength
+        New-NetIPAddress -InterfaceAlias $adapter -IPAddress $ip2 -PrefixLength $prefixLength
+        New-NetIPAddress -InterfaceAlias $adapter -IPAddress $ip3 -PrefixLength $prefixLength
+        # New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip1 -PrefixLength $prefixLength
+        # New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip2 -PrefixLength $prefixLength
+        # New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip3 -PrefixLength $prefixLength
         echo "IP1: $ip1/$prefixLength"
         Write-Host "IP2: $ip2/$prefixLength"
         Write-Host "IP3: $ip3/$prefixLength"
