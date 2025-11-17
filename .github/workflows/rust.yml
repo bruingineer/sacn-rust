@@ -11,15 +11,15 @@ env:
 
 jobs:
   test-linux:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
+
     - name: Build
       run: cargo build --verbose
+
     - name: Run tests
-      run: cargo test --verbose -- --test-threads=1
+      run: cargo test --verbose
 
   test-linux-ipv4:
 
@@ -33,15 +33,26 @@ jobs:
       run: docker run --cap-add=NET_ADMIN --privileged sacn-tests
 
   test-windows:
-
     runs-on: windows-latest
-
     steps:
     - uses: actions/checkout@v4
+
     - name: Build
       run: cargo build --verbose
+
     - name: Run tests
-      run: cargo test --verbose -- --test-threads=1
+      run: cargo test --verbose
+
+  test-macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build
+      run: cargo build --verbose
+
+    - name: Run tests
+      run: cargo test --verbose
 
   test-windows-ipv4:
 

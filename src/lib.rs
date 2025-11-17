@@ -79,7 +79,7 @@
 //!     Err(e) => {
 //!         match e {
 //!             sacn::error::errors::SacnError::SourceDiscovered(source_name) => {
-//!                 println!("Source name: {} discovered!", source_name);    
+//!                 println!("Source name: {} discovered!", source_name);
 //!             }
 //!             other => {
 //!                 // Print out the error.
@@ -96,7 +96,7 @@
 //!
 //! Creating a sACN sender and sending some unsychronised data. An sACNSender automatically sends universe discovery packets.
 //!
-//! ```
+//! ```no_run
 //! use sacn::source::SacnSource;
 //! use sacn::packet::ACN_SDT_MULTICAST_PORT;
 //! use std::net::{IpAddr, SocketAddr};
@@ -115,12 +115,11 @@
 //! let mut data: Vec<u8> = vec![0, 0, 0, 0, 255, 255, 128, 128]; // Some arbitrary data, must have length <= 513 (including start-code).
 //!
 //! src.send(&[universe], &data, Some(priority), dst_ip, sync_uni).unwrap(); // Actually send the data
-//!
 //! ```
 //!
 //! Creating a sACN sender and sending some synchronised data.
 //!
-//! ```
+//! ```no_run
 //! use sacn::source::SacnSource;
 //! use sacn::packet::ACN_SDT_MULTICAST_PORT;
 //!
@@ -153,7 +152,7 @@
 //!
 //! Creating a sACN sender and sending data using unicast.
 //!
-//! ```
+//! ```no_run
 //! use sacn::source::SacnSource;
 //! use sacn::packet::ACN_SDT_MULTICAST_PORT;
 //!
