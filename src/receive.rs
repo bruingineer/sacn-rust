@@ -495,140 +495,148 @@ impl SacnReceiver {
     /// specified by E131_NETWORK_DATA_LOSS_TIMEOUT (ANSI E1.31-2018 Appendix A).  This may not be detected immediately unless data is received for the timed-out
     /// universe from the source. If it isn't detected immediately it will be detected within an interval of E131_NETWORK_DATA_LOSS_TIMEOUT (assuming code
     /// executes in zero time).
-    pub fn recv(&mut self, timeout: Option<Duration>) -> Result<Vec<DMXData>> {
-        if self.universes.len() == 1
-            && self.universes[0] == E131_DISCOVERY_UNIVERSE
-            && timeout.is_none()
-            && !self.announce_source_discovery
-        {
-            // This indicates that the only universe that can be received is the discovery universe.
-            // This means that having no timeout may lead to no data ever being received and so this method blocking forever
-            // to prevent this likely unintended behaviour throw a universe not registered error.
-            return Err(SacnError::NoDataUniversesRegistered());
-        }
-
-        self.sequences.check_timeouts(self.announce_timeout)?;
-        self.check_waiting_data_timeouts();
-
-        if timeout == Some(Duration::from_secs(0)) {
-            if cfg!(target_os = "windows") {
-                // Use the right expected error for the operating system.
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::TimedOut,
-                    "No data available in given timeout",
-                )
-                .into());
-            } else {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::WouldBlock,
-                    "No data available in given timeout",
-                )
-                .into());
+    pub fn recv(&mut self, timeout_arg: Option<Duration>) -> Result<Vec<DMXData>> {
+        let mut outer_timeout = timeout_arg;
+        loop {
+            let timeout = outer_timeout;
+            if self.universes.len() == 1
+                && self.universes[0] == E131_DISCOVERY_UNIVERSE
+                && timeout.is_none()
+                && !self.announce_source_discovery
+            {
+                // This indicates that the only universe that can be received is the discovery universe.
+                // This means that having no timeout may lead to no data ever being received and so this method blocking forever
+                // to prevent this likely unintended behaviour throw a universe not registered error.
+                return Err(SacnError::NoDataUniversesRegistered());
             }
-        }
 
-        // Forces the actual timeout used for receiving from the underlying network to never exceed E131_NETWORK_DATA_LOSS_TIMEOUT.
-        // This means that the timeouts for the sequence numbers will be checked at least every E131_NETWORK_DATA_LOSS_TIMEOUT even if
-        // recv is called with a longer timeout.
-        let actual_timeout =
-            if timeout.is_some() && timeout.unwrap() < E131_NETWORK_DATA_LOSS_TIMEOUT {
-                timeout
-            } else {
-                Some(E131_NETWORK_DATA_LOSS_TIMEOUT)
-            };
+            self.sequences.check_timeouts(self.announce_timeout)?;
+            self.check_waiting_data_timeouts();
 
-        self.receiver.set_timeout(actual_timeout)?; // "Failed to sent a timeout value for the receiver"
-        let start_time = Instant::now();
+            if timeout == Some(Duration::from_secs(0)) {
+                if cfg!(target_os = "windows") {
+                    // Use the right expected error for the operating system.
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "No data available in given timeout",
+                    )
+                    .into());
+                } else {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::WouldBlock,
+                        "No data available in given timeout",
+                    )
+                    .into());
+                }
+            }
 
-        let mut buf: [u8; RCV_BUF_DEFAULT_SIZE] = [0; RCV_BUF_DEFAULT_SIZE];
-        match self.receiver.recv(&mut buf) {
-            Ok(pkt) => {
-                let pdu: E131RootLayer = pkt.pdu;
-                let data: E131RootLayerData = pdu.data;
-                let res = match data {
-                    DataPacket(d) => self.handle_data_packet(pdu.cid, d)?,
-                    SynchronizationPacket(s) => self.handle_sync_packet(pdu.cid, s)?,
-                    UniverseDiscoveryPacket(u) => {
-                        let discovered_src: Option<String> =
-                            self.handle_universe_discovery_packet(u);
-                        if let Some(src) = discovered_src
-                            && self.announce_source_discovery
-                        {
-                            return Err(SacnError::SourceDiscovered(src));
-                        };
-                        None
-                    }
+            // Forces the actual timeout used for receiving from the underlying network to never exceed E131_NETWORK_DATA_LOSS_TIMEOUT.
+            // This means that the timeouts for the sequence numbers will be checked at least every E131_NETWORK_DATA_LOSS_TIMEOUT even if
+            // recv is called with a longer timeout.
+            let actual_timeout =
+                if timeout.is_some() && timeout.unwrap() < E131_NETWORK_DATA_LOSS_TIMEOUT {
+                    timeout
+                } else {
+                    Some(E131_NETWORK_DATA_LOSS_TIMEOUT)
                 };
 
-                match res {
-                    Some(r) => Ok(r),
-                    None => {
+            self.receiver.set_timeout(actual_timeout)?; // "Failed to sent a timeout value for the receiver"
+            let start_time = Instant::now();
+
+            let mut buf: [u8; RCV_BUF_DEFAULT_SIZE] = [0; RCV_BUF_DEFAULT_SIZE];
+            match self.receiver.recv(&mut buf) {
+                Ok(pkt) => {
+                    let pdu: E131RootLayer = pkt.pdu;
+                    let data: E131RootLayerData = pdu.data;
+                    let res = match data {
+                        DataPacket(d) => self.handle_data_packet(pdu.cid, d)?,
+                        SynchronizationPacket(s) => self.handle_sync_packet(pdu.cid, s)?,
+                        UniverseDiscoveryPacket(u) => {
+                            let discovered_src: Option<String> =
+                                self.handle_universe_discovery_packet(u);
+                            if let Some(src) = discovered_src
+                                && self.announce_source_discovery
+                            {
+                                return Err(SacnError::SourceDiscovered(src));
+                            };
+                            None
+                        }
+                    };
+
+                    if let Some(r) = res {
+                        return Ok(r);
+                    } else {
                         // Indicates that there is no data ready to pass up yet even if a packet was received.
                         // To stop recv blocking forever with a non-None timeout due to packets being received consistently (that reset the timeout)
                         // within the receive timeout (e.g. universe discovery packets if the discovery interval < timeout) the timeout needs to be
                         // adjusted to account for the time already taken.
                         if let Some(timeout) = timeout {
                             let elapsed = start_time.elapsed();
-                            match timeout.checked_sub(elapsed) {
-                                None => {
-                                    // Indicates that elapsed is bigger than timeout so its time to return.
-                                    Err(std::io::Error::new(
-                                        std::io::ErrorKind::WouldBlock,
-                                        "No data available in given timeout",
-                                    )
-                                    .into())
-                                }
-                                Some(new_timeout) => self.recv(Some(new_timeout)),
+                            if timeout.checked_sub(elapsed).is_none() {
+                                // Indicates that elapsed is bigger than timeout so its time to return.
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::WouldBlock,
+                                    "No data available in given timeout",
+                                )
+                                .into());
+                            } else {
+                                outer_timeout = timeout.checked_sub(elapsed);
+                                continue;
                             }
                         } else {
                             // If the timeout was none then would keep looping till data is returned as the method should keep blocking till then.
-                            self.recv(timeout)
+                            outer_timeout = timeout;
+                            continue;
                         }
                     }
                 }
-            }
-            Err(err) => {
-                match err {
-                    SacnError::Io(ref s) => {
-                        match s.kind() {
-                            // Windows and Unix use different error types (WouldBlock/TimedOut) for the same error.
-                            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => {
-                                if let Some(timeout) = timeout {
-                                    let elapsed = start_time.elapsed();
-                                    match timeout.checked_sub(elapsed) {
-                                        None => {
-                                            // Indicates that elapsed is bigger than timeout so its time to return.
-                                            if cfg!(target_os = "windows") {
-                                                // Use the right expected error for the operating system.
-                                                Err(std::io::Error::new(
-                                                    std::io::ErrorKind::TimedOut,
-                                                    "No data available in given timeout",
-                                                )
-                                                .into())
-                                            } else {
-                                                Err(std::io::Error::new(
-                                                    std::io::ErrorKind::WouldBlock,
-                                                    "No data available in given timeout",
-                                                )
-                                                .into())
+                Err(err) => {
+                    match err {
+                        SacnError::Io(ref s) => {
+                            match s.kind() {
+                                // Windows and Unix use different error types (WouldBlock/TimedOut) for the same error.
+                                std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => {
+                                    if let Some(timeout) = timeout {
+                                        let elapsed = start_time.elapsed();
+                                        match timeout.checked_sub(elapsed) {
+                                            None => {
+                                                // Indicates that elapsed is bigger than timeout so its time to return.
+                                                if cfg!(target_os = "windows") {
+                                                    // Use the right expected error for the operating system.
+                                                    return Err(std::io::Error::new(
+                                                        std::io::ErrorKind::TimedOut,
+                                                        "No data available in given timeout",
+                                                    )
+                                                    .into());
+                                                } else {
+                                                    return Err(std::io::Error::new(
+                                                        std::io::ErrorKind::WouldBlock,
+                                                        "No data available in given timeout",
+                                                    )
+                                                    .into());
+                                                }
+                                            }
+                                            Some(new_timeout) => {
+                                                outer_timeout = Some(new_timeout);
+                                                continue;
                                             }
                                         }
-                                        Some(new_timeout) => self.recv(Some(new_timeout)),
+                                    } else {
+                                        // If the timeout was none then would keep looping till data is returned as the method should keep blocking till then.
+                                        outer_timeout = timeout;
+                                        continue;
                                     }
-                                } else {
-                                    // If the timeout was none then would keep looping till data is returned as the method should keep blocking till then.
-                                    self.recv(timeout)
+                                }
+                                _ => {
+                                    // Not a timeout/wouldblock error meaning the recv should stop with the given error.
+                                    return Err(err);
                                 }
                             }
-                            _ => {
-                                // Not a timeout/wouldblock error meaning the recv should stop with the given error.
-                                Err(err)
-                            }
                         }
-                    }
-                    _ => {
-                        // Not a timeout/wouldblock error meaning the recv should stop with the given error.
-                        Err(err)
+                        _ => {
+                            // Not a timeout/wouldblock error meaning the recv should stop with the given error.
+                            return Err(err);
+                        }
                     }
                 }
             }
