@@ -32,8 +32,8 @@ jobs:
         uses: release-plz/action@487eb7b5c085a664d5c5ca05f4159bd9b591182a #v0.3.150
         with:
           command: release-pr
-        # env:
-        #   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_GH }}
 
   # Release unpublished packages.
   release-plz-release:
@@ -50,4 +50,4 @@ jobs:
         with:
           command: release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_GH }}
