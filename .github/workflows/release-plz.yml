@@ -3,7 +3,7 @@ name: release-plz
 on:
   push:
     branches:
-      - main
+      - main-dev
 
 jobs:
 
@@ -11,7 +11,7 @@ jobs:
   release-plz-pr:
     name: Release-plz PR
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'RustLight' }}
+    # if: ${{ github.repository_owner == 'RustLight' }}
     permissions:
       contents: write
       pull-requests: write
@@ -39,7 +39,7 @@ jobs:
   release-plz-release:
     name: Release-plz release
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'RustLight' }}
+    # if: ${{ github.repository_owner == 'RustLight' }}
     permissions:
       contents: write
     steps:
