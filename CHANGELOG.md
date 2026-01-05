@@ -1,0 +1,511 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.11.1](https://github.com/bruingineer/sacn-rust/compare/v0.11.0...v0.11.1) - 2026-01-05
+
+### Fixed
+
+- enforce specific line endings for sensitive file types
+- fix travis
+- fix travis build script
+- fix travis nightly build
+- fix typo
+- fix rustfmt annotations and crates.io badge
+- fixed tests to drop sockets (tests were unpredictable before)
+- fix travis token
+
+### Other
+
+- Update README.md
+- update readme test description ([#61](https://github.com/bruingineer/sacn-rust/pull/61))
+- use unique tx,rx pair in terminate 2 source test ([#59](https://github.com/bruingineer/sacn-rust/pull/59))
+- [receive] use get() in has_all_pages() instead of unguarded array index ([#53](https://github.com/bruingineer/sacn-rust/pull/53))
+- [receive] use cid instead of source name for discovery lookup ([#52](https://github.com/bruingineer/sacn-rust/pull/52))
+- set initial sequence number to first seq_num-1 on new source ([#54](https://github.com/bruingineer/sacn-rust/pull/54))
+- add docker ipv4 tests on debian to GH action ([#41](https://github.com/bruingineer/sacn-rust/pull/41))
+- [receive] fix sequence number check bug ([#43](https://github.com/bruingineer/sacn-rust/pull/43))
+- ignore doctests that actually send multicast data as IP configuration is unknown
+- ignore tests that actually send multicast data as IP configuration is unknown
+- prepare for 0.11 release
+- add macos test job and enable parallelization of all tests
+- *(style)* enable applying rustfmt to tests, skipping only packet and universe data arrays
+- execute tests that require port binding sequentially
+- *(deps)* update dependencies in lockfile
+- *(style)* apply cargo-fmt
+- Update recv, change to this-error, address clippy warnings, fix unsafe pack_vec ([#37](https://github.com/bruingineer/sacn-rust/pull/37))
+- Update README.md
+- Update README.md
+- Cargo lock
+- Merge branch 'main' into update-deps
+- Merge branch 'main' into code-style
+- Fix missing crate::
+- Merge pull request #23 from RustLight/update_rust_workflow_to_latest_example
+- Updates the rust workflow to the latest git exmaple
+- 0.10.0
+- Update dependencies
+- Make the receiver example a tad more usable
+- Simple example of creating a sacn recv tool
+- Simple sender example - tested again sacn viewer
+- 0.9.1
+- Exclude unneeded files from the cargo package
+- Documentation link back to github for now
+- Prep for push to crates
+- Move original fork information to bottom of README
+- Cleaned up assert! macros to be Rust 21 compliant
+- Added support for compiling on MacOS.
+- Update issue templates
+- Update issue templates
+- Update README.md
+- Update rust.yml
+- Update README.md
+- Remove source docs as can be generated as needed
+- Merge branch 'master' of https://github.com/Lan2u/RustSacn
+- Re-adding relevant files
+- Version update
+- Removed extra stuff related to dissertation
+- Merge branch 'master' of https://github.com/Lan2u/RustSacn
+- Removed unneeded folder
+- Small changes, typos etc.
+- Fixed typo
+- Submission
+- Report, apendix docs added
+- Pending thinning of report, report finished
+- Removed unneeded file
+- Report references complete
+- 1/3 through references
+- Rotate figure 9
+- Report go through finished
+- Reached upto end of testing in report go through
+- Reached end of implementation section
+- Report upto the end of the SacnReceiver section of implementation
+- Almost finished report design final go through
+- Redoing design section
+- Packet structure diagrm
+- Working on packet structure diagraM
+- Added IpMulticastMapping diagram, fixed caption/label being wrong way around in latex
+- Updated expected usage diagram
+- Finished upto start of design stage in report finalisation
+- Added vision explaination diagram
+- Vision explained screenshot
+- Merge branch 'master' of https://github.com/Lan2u/SACN-SH-Project
+- Avolites titan explaination screenshot
+- Merge branch 'master' of https://github.com/Lan2u/SACN-SH-Project
+- Added show files used for tests
+- Sender, interop, test, 1
+- Merge branch 'master' of https://github.com/Lan2u/SACN-SH-Project
+- Test 1, sender interop, sender side results
+- Annotated all receiver interop testing
+- Acceptance test results, receiver side
+- Acceptance test, sender side results
+- Fixed bug in acceptance test where didn't offset universe 2 values so were overlapping universe 1
+- Acceptance test, test sequence
+- Sender interop, Test 5, Receiver Results
+- Added sender interop 3, (4+5) as test presets
+- Test 9, sender interop, sender side
+- Test 7,8 sender interop, sender side results
+- Merge branch 'master' of https://github.com/Lan2u/SACN-SH-Project
+- Added receiver side results for sender-interop test 7+8
+- Merge branch 'master' of https://github.com/Lan2u/SACN-SH-Project
+- Ipv6 config, sender, sender interop
+- Sender inter-op sender test results test 1-4
+- Merge branch 'master' of https://github.com/Lan2u/SACN-SH-Project
+- Receiver results for sender inter-op test 1-4
+- Sender-interop setup, fixed unused import warning on receive
+- Ready to begin sender inter-op testing
+- CS4099 updated test vision file to contain 2 full universes with a visual seperation
+- Updated visualiser file to fit within universes
+- Merge branch 'master' of https://github.com/Lan2u/SACN-SH-Project
+- Made vision inter-op test files
+- Merge branch 'master' of https://github.com/Lan2u/SACN-SH-Project
+- Receiver inter-op laptop side
+- Cannot workout why wireshark thinks stream-terminated packets are malformed
+- Sync parsing unit tests, all tests pass
+- Fixed sync packet rejecting reserved fields if they have values
+- Sync packet parse unit tests - haven't set correct return errors yet
+- All tests pass, some tests run twice
+- Split tests up, all unit tests except two_senders_one_recv_same_universe_no_sync
+- More unit tests, fixed parse/pack test
+- More discovery packet parse unit tests
+- Discovery packet parse unit tests, required some bug fixes, all pass
+- Fixed bug where page wasn't checked that it was lower than last_page
+- Discovery packet unit tests, still checking correct returns
+- Universe discovery tests, made generator to generate test discovery packets with various universe count
+- Added termination packet parse tests
+- Finished data, packet malformed packet parse unit tests, all pass
+- Small expansion on problem found added to the report
+- Added more checks to tests where the packet should be parsed correctly
+- Found problem in existing implementation, packet options were handled incorrectly with the wrong bit used (shifted by 1) for each option, fixed for both parsing and packing and included associatied tests - All tests pass
+- Found that sync_addr validation missed when parsing, added and added tests
+- Unit tests found flaw in packet parsing that priority wasn't checked, added new error and associated testS
+- All malformed tests pass
+- Another test, got through to malformed vector in data-framing-layer, errors still not corrected for some unit tests leading to failures
+- More malformed tests, haven't set the right expected errors yet
+- Use no-fail-fast when running tests, all unit tests pass
+- Updated rcv_tests
+- Parse_pack_error to encapsulate parse/pack errors, added to library - tests not updated
+- More parse malformated packet unit tests
+- Fixed formatting issue
+- Document formatting messed with comment placement within the test data structures
+- More malformed packet unit tests
+- Verified test discovery packet format
+- Test packets checked, some malformed packets created
+- Splitting up tests into new file - will do malformed packet parse checking
+- Added more unit-tests, working down compliance list
+- All unit tests enabled pass on windows/home-network
+- All SSH tests pass
+- is_multicast moved into receiver as this makes most sense
+- Decided that Windows implementation won't support Ipv6 multicast
+- Added handling for AF_INET6 not being able to be converted
+- More informative output when ip family not recognised
+- Win version compiling
+- t push
+- Potential fix for libc not working on windows
+- Updated heapless
+- All SSH tests pass
+- Fixed bug in source that assumed IPv6 version
+- libc constants used as returned by Socket2
+- Both receive and source on socket2
+- Socket2 to fix problems with Ipv6?
+- Added terminate universe test, all pass
+- Added ignore input lines to use for comments within the test files
+- Added ignore input lines to use for comments within the test files
+- Possible fix for terminate stream not removing terminated streams from universe discovery adverts
+- Added announce discovery option to the demo recv
+- Changed how the automated tests work to account for file system sync problem, all tests pass
+- Cargo check reports no warnings or issues
+- IpVersionError if attempt to join/leave multicast with differing versions of interface and multicast ip
+- Added leave multicast methods for windows and unix
+- Implemented the mute universe part of receive
+- Added receiver preview option
+- Refractor demo_rcv
+- Completed refractor
+- Refractor of demo_src, added preview option
+- Refractored demo_src
+- Allow dead code in unit tests, unwrap of register universe in unit test
+- Used RLS extension to fix some warnings
+- Unit tests pass individually, run together even with test_threads=1 there is sometimes failures
+- Added priority and src_cid fields to DMXData
+- Added limit to the number of sources, untested
+- Receive tests passing
+- Untested impl of multiple sources with seq numbers
+- Starting to have a runtime defined fixed limit to sources that a receiver can handle, this is to allow counting sequence numbers from each source individually
+- Ipv6 multicast section, report
+- Multicast address assignment, report
+- Missed by prev commit
+- Universe sync
+- Report stuff
+- Packet structure
+- Report work, expected usage
+- Expected usage diagram
+- Real-world tools sections
+- Tools section of report
+- Integration tests report section started
+- More work on report
+- Implementation section
+- Report, annouce_source_discovery setters/getters
+- Added announce-discovery-flag and handling
+- Report stuff, added check that recv isn't called with no data universes registered and an infinite timeout
+- Small amount on report
+- Context survery and software engineering methodology section work + dev timeline
+- SE section of report work
+- Added flags to stop windows/unix only code being built when on other os
+- Sending and recieve working with Wind Sending -> Unix Recv
+- On home network, UNIX can send/recv and so can Windows
+- Need to have an upto date rust to allow error-chains dependencies to work
+- Unix/Windows multicast simple working?
+- Window/Unix version of simple Mcast?
+- Working on fixing the multicast bug... again
+- Multicast simple seems to be working on unix for ipv6
+- Fixed syntax bugs, windows ipv6 tests fail
+- Fixed a couple warnings
+- Added SSH overflow-sequence test, found bug, fixed, tests pass
+- Misc tidying file headers
+- Added license/Uni attribute headers to files
+- SSH based tests pass
+- Fixed underflow bug
+- Sequence number sending seperated by packet type
+- Centralised universe validity checking, finished most documentation, sequence numbering, terminated stream error
+- Added error for a stream being termintated when receiving data
+- Added receiver sequence number checking
+- Finished most of recieve documentation
+- More documetnation
+- Further documetnation
+- Further documentation
+- Continued documentation
+- Pulled constants out of packet code up to the top and documented
+- lib.rs file cleaned, documented
+- Error is tidied, documented
+- Across labs / SSH tests working
+- Bug found, fixed, test runs but doesn't finish - likely because localhost won't do multicast
+- Back to fixing tests...
+- Moved both_tests over to error-chain
+- Moved test files (except both_tests) over to error-chain
+- Added error-chain to demo_src
+- Demo_src to error-chain
+- Converted source.rs to error-chain
+- Moved packet.rs over to new error-chain system
+- Removed Parse/Pack errors, replaced with error-chain systeM
+- Added error-chain into receive
+- Adding error_chain
+- Documentation of universe->multicast conversions, removed redundant constants
+- Finished removing the multi-threaded receiver elements
+- Removed all the multi-threaded stuff from receiver as not needed, adds complexity
+- Added multi-threaded reciever
+- Unit tests not passing, updated some documentation
+- Started on final documentation, clean of source.rs
+- Added warning for lack of documentation
+- More work on context survey
+- Re-writtenabstract and introduction
+- Added f = send full universe option, system works with vision in union
+- Made shape generation use 0 startcode
+- discussion points
+- Changing printing to more easily be graphed
+- Shape data sending working for demo_src
+- Started adding demo shape function to demo src
+- Wrote universe discovery 1 source test, all tests pass
+- Added should fail test for sanity checking tester, test 1 and 2 pass, sometimes it seems test 1 randomly fails, added more delay to help with this
+- Multiple universe, sync test (2) passes
+- Added sync sending to demo_src, writing test for universe sync
+- Small note on not handling sequence numbers for recv
+- Added processing on preview_data and stream_terminated
+- Code tidy ups, discovered sources timeout - untested
+- Test 1 setup and passing
+- Fixed syntax bug in test script
+- Automated testing system seems to work
+- Working on automated pass/fail of tests, base production of output files working
+- Added fix for the receive infinite loop issue
+- adding srcs
+- Adding cmd line args to the testign
+- Added wait/sleep to both demo programs to allow pauses when executign
+- Added sources
+- Small bug in rcv
+- Individual src and rcv scripts work with the test1 input files respectively and with manual SSH into a machine data is sent and received as expected
+- Removed debug output
+- Added EOF detection to demo rcv
+- Demo src now terminates at EOF
+- Found problem with recv meaning timeouts are reset (and potentially never will return if higher than universe discovery interval - also universe discovery working on recevier
+- Removed update thread from receiver as unneeded
+- Added interactivity to demo_rcv
+- Code clean up
+- Added citations
+- Made socket creation code ipv6 aswell as ipv4, ipv6 not tested
+- Receiving from multiple multicast addresses working for linux in labs
+- Added background for simple
+- Simple multicast sender sending and receiving on multiple multicast addresses
+- Moved create socket code out to seperate function
+- Checked and reason mutlicast receiving isn't due to the size of the buffer
+- Created ssimple multicast sending program which works
+- Sending unicast working again, multicast still not receiving (but is received by receiving computer)
+- Added help messages, receiving not working even on unicast
+- Debug impl for SacnRecevierInternal
+- Sending on multiple universes working on multicast across lab machines (wireshark shows) but receiving not registered by test program
+- Sending data working across computers in labs on linux with unicast only, multicast not being received (but is on wireshark)
+- Test sender sending working, checked with wireshark
+- Demo sender, most of the structure, doesn't have sending yet
+- Wrote simple test demo_recv program, compiles and runs on linux
+- All universe discovery tests pass
+- added get all universes method to DiscoveredSacnSource
+- Changing discovered sacn source so the concept of pages is hidden
+- Fixed bug in DiscoveredSource has_all_pages function
+- Start of a new test to test multiple pages in universe discovery adverts
+- All tests pass, did some cleanup
+- Added multiple universes test
+- Fixed some compile warnings
+- Fixed universe 1 send 1 recv test
+- Universe discovery test receives and parses discovery test but then panics
+- Fixed bug where universe -> ip conversion failed for DISCOVERY_UNIVERSE
+- Wrote universe discovery test, not tested, shows pattern for discovering sources
+- Small amount of rust section of report
+- Fixed syntax changes in tests due to change to set_nonblocking to set_timeout
+- Fixed some syntax issues, moved logic for set_timeout to SacnRecvInternal
+- More work on context survey
+- Working on context survey
+- Working on report intro
+- Starting to work on how to discover universes explicitly
+- Moved constants to packet, listen universe checks for recv
+- Create rust.yml
+- Merge pull request #3 from Lan2u/threaded_rcv
+- Added terminate method for SacnReceieverInternal
+- Updated internal recieve tests
+- Making receiver threaded to allow updating with universe discovery
+- All tests pass, found that wasn't waiting to join threads at end of tests
+- Computer crash, recovering datA
+- Stream terminated packets sent don't have flags set correctly
+- Receiver added ignoring stream terminate packets, TODO: handle
+- Manual impl of Eq, PartialEq, PartialOrd, Ord for DmxData
+- Having issue with test_three_senders_three_recv not passing
+- Sacn termination automatically on drop
+- Implementation of terminate workign
+- added ref
+- Found update thread won't join as continously looping
+- Reimplemented all methods, ipv6 tests don't pass unless run on-own
+- Reimpl register universe(s)
+- Tests compiles, obviously all integration tests fail as all SacnSource methods raise not impl
+- Phase 1 of threaded source move, move methods to wrapping SacnSource but don't impl
+- Adding threading to source to allow universe discovery adverts
+- Reconfigured for home network, all tests pass
+- All tests pass, updated compliance list
+- Added a variety of multiple sender/reciever tests, all pass
+- 2 senders, 2 receivers test passes
+- Fixed non-compiling errors with 2 senders, 2 receivers test
+- Part way through adding 2 senders, 2 receivers test
+- Fixed a few compiler warnings
+- Implemented merge test, passes
+- Continued working on the merge intergration test, currently hangs
+- Starting to add tests for merging
+- Added 2 senders, 1 recv test, diff universes test - passes
+- Test template for multiple senders
+- test to send across multiple recievers with sync passes
+- Recieve from multiple recievers sync test hangs
+- Added universe registered checks for sync universe when sending
+- Fixed tests that were broken, note the across multi recievers sync test currently fails
+- Added test for testing multiple recievers sync
+- Merge branch 'master' of https://github.com/Lan2u/SACN-SH-Project
+- Changed how send works so it won't automatically send a sync packet
+- Fixed bug where unicast sync packets were sent on multicast address
+- Added test_send_recv_across_universe_unicast tests, ipv4 and 6 failing
+- Multicast test passing, found issue is localhost/loopback doesn't support ipv6 multicast
+- Sending IPv6 multicast not working
+- Added more tests for ip to ipv6
+- Renamed tests to fit new function names
+- Removed depreciated universe to ip method in receive
+- Updated tests to new function signatures
+- Tests don't currently pass due to moving of functions
+- Receiver multicast listen universe no longer IPv4 specific
+- Adding IPv6 support to receiver
+- Added source Ipv6 / IPv6+Ipv4 support
+- Moved compliance list out into a spreadsheet
+- Marked which tests show compliance with allowing unicast
+- All tests pass
+- Fixed bug in universe to ip, fixed some tests
+- Setup structure of source for IPv6
+- Reformatted how send works to allow unicast
+- Finished detailed compliance list
+- Reached section 6.7.2 in the detailed specification
+- Wrote a report section on the waterfall design methodology chosen and why
+- Started adding specific points in the list of parts of the standard
+- Fixed small issue with receieved data ordering being assumed in a test
+- Added a listing of ANSI-E1.31 to be used to check compliance of each part
+- Removed depreciated send method and renamed send-across-universe to send
+- Modified return types of packet handlers to avoid returning empty Vec's
+- Added handling discovery packet test
+- Implemented handlign universe discovery packets
+- In process of sorting storing partially / completely discovered sources as part of universe discovery
+- Started working on universe discovery receiving
+- Added universe discovery packet sending
+- Small tidy
+- Added requirement to register universes before sending on them
+- Added report outline from given specification
+- Universe synchronisation (no options) working, all tests pass
+- Stopped treating the payload start code specially
+- Implemented handle sync packet
+- Added sync packet handling + some associated tests
+- Re-ordered receive
+- Added merging of packets received while one still waiting
+- Better organised testing
+- Cleaned up code
+- Sending single universe passes again
+- Reformating all code to try using a single socket to receive all data
+- Fundamentally non-rust way of doing things being used, moving to a more functional way of looking at stuff
+- Boxed ACN packet returned from recv methods
+- Continuing move to using SacnReciever struct to handle overall recieving
+- Added SacnReceiver which will be the new way to interact with the receiver library (to allow handling across multiple universes, dmx receiver is just for a single universe)
+- Added multiple universes test, failed as not implemented yet
+- Implemented test_both for a single universe
+- Seperated out startcode from data when recieving
+- Added single/across universe tests for sender, receiver successfully receving single universe data
+- Added data packets with no sync address handlign
+- Working on simple data receiving for non-sync data
+- Split up receving between different methods for sync, data and discovery types
+- Starting to think about how recieving when universe sync is a thing will work
+- Code cleanup to remove most of the warnings
+- Added across universe sending with syncronization
+- Continuation of implementation of syncronised sending
+- Send across universe function started + automatic usage of single universe if applicable
+- Small cleanup
+- Dmx send/recv working
+- Trying to workout how to setup network to test
+- Recieving scan compiling
+- Merge branch 'master' of https://github.com/Lan2u/SACN-SH-Project
+- Working on testRcv, using lifetimes solved return problem
+- Still working on how to return / use parsed packet
+- Working through getting parsed packet out of recv function
+- Merge branch 'master' of https://github.com/Lan2u/SACN-SH-Project
+- Added universe_to_ipv4_array, workspace wide cargo.toml
+- Git ignore for test programs
+- Cleaning up repo ready for gitignore
+- Etablished how specifying which interface/network to use currently works
+- Trying to establish why recieving and sending on same computer on non-loopback doesn't work (suspect this is intentional)
+- Recieving working on loop back
+- Still working on multicast rcv
+- Listener isn't recieving multicast packets - packets defo sending - checked with wireshark
+- Create test rcv program - not workign yet
+- Got dependencies for multicast recieve workign
+- Working on multicast recieving
+- Expanded / refined DOER objectives
+- Started looking through existing code to work on a sACN reciever
+- Created test and lib seperation, simple program that spams values on universe 1 multicast
+- Wrote most, need some more objectives
+- Wrote description, ethics and resources sections for DOER
+- Writing background for DOER
+- Started on DOER description
+- Added DOER spec
+- make clippy happy
+- add common tratis to packet types
+- use cow when std ist available
+- use unstable features on nightly only
+- run no std builds on nightly only
+- use heapless instead of arrayvec
+- adapt source to simplified packets
+- simpler parsing by allways copying data
+- cleanup error module
+- rename packet unit tests
+- bump version
+- remove redundant dependencies
+- bump version
+- add keywords and readme to Cargo.toml
+- bump version
+- remove redundant dependencies
+- bump version
+- improve documentation
+- Merge branch 'master' of github.com:lschmierer/sacn
+- bump version
+- update version
+- add no std build to travis
+- use new packet module in DmxSource
+- use heap allocation if std is available
+- parsing of universe discovery packets
+- parsing of synchronization packets
+- document calculation of lengths
+- add missing error module
+- parsing data packets
+- documentation updates
+- pack universe discovery packet
+- pack synchronization packet
+- Rename E131RootLayerPdu
+- minor cleanup
+- pack data packet
+- work in progress on no std packets
+- prepare release v0.2.0
+- update dependencies
+- update docs and remvoe travis docs upload
+- format source code
+- Add Gitter badge
+- Merge pull request #7 from macoss/controller-ip
+- Removed UdpSocketExt from the net2 library incude as it was not being used and generating warnings in both the library and the tests.
+- Update README.md
+- added license header, format and version bump
+- Relicense to dual MIT/Apache-2.0
+- test for stream termination
+- publish to crates.io
+- Run travis-ci on new infrastructure
+- point README to documentation
+- Travis auto generate docs
+- travis-ci integration
+- Initial commit
