@@ -1,8 +1,7 @@
 # RUST Sacn
 A Rust implementation of the ANSI E1.31 Streaming ACN protocol, tested against protocol version ANSI E1.31-2018. 
 
-# test header for pr 
-pr add info about this commit.
+# remove header
 
 ### Support for
 * Sending and receiving data using the ANSI E1.31-2018 protocol over IPv4 and IPv6
