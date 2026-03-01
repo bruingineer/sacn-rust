@@ -898,10 +898,12 @@ fn test_send_recv_across_universe_multicast_ipv4(){
 
     let thread_tx = tx.clone();
 
-    const UNIVERSES: [u16; 2] = [2, 3];
+    const U2: u16 = 102;
+    const U3: u16 = 103;
+    const UNIVERSES: [u16; 2] = [U2, U3];
 
     let rcv_thread = thread::spawn(move || {
-        let mut dmx_recv = SacnReceiver::with_ip(SocketAddr::new(Ipv4Addr::new(0,0,0,0).into(), ACN_SDT_MULTICAST_PORT), None).unwrap();
+        let mut dmx_recv = SacnReceiver::with_ip(SocketAddr::new(TEST_NETWORK_INTERFACE_IPV4[1].parse().unwrap(), ACN_SDT_MULTICAST_PORT), None).unwrap();
 
         dmx_recv.listen_universes(&UNIVERSES).unwrap();
 
@@ -912,7 +914,7 @@ fn test_send_recv_across_universe_multicast_ipv4(){
 
     let _ = rx.recv().unwrap(); // Blocks until the receiver says it is ready.
 
-    let ip: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), ACN_SDT_MULTICAST_PORT + 1);
+    let ip: SocketAddr = SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap()), ACN_SDT_MULTICAST_PORT + 1);
     let mut src = SacnSource::with_ip("Source", ip).unwrap();
 
     let priority = 100;
@@ -935,15 +937,15 @@ fn test_send_recv_across_universe_multicast_ipv4(){
 
     assert_eq!(received_data.len(), 2); // Check 2 universes received as expected.
 
-    assert_eq!(received_data[0].universe, 2); // Check that the universe received is as expected.
+    assert_eq!(received_data[0].universe, U2); // Check that the universe received is as expected.
 
-    assert_eq!(received_data[0].sync_uni, 2); // Check that the sync universe is as expected.
+    assert_eq!(received_data[0].sync_uni, U2); // Check that the sync universe is as expected.
 
     assert_eq!(received_data[0].values, TEST_DATA_MULTIPLE_UNIVERSE[..UNIVERSE_CHANNEL_CAPACITY].to_vec(), "Universe 1 received payload values don't match sent!");
 
-    assert_eq!(received_data[1].universe, 3); // Check that the universe received is as expected.
+    assert_eq!(received_data[1].universe, U3); // Check that the universe received is as expected.
 
-    assert_eq!(received_data[1].sync_uni, 2); // Check that the sync universe is as expected.
+    assert_eq!(received_data[1].sync_uni, U2); // Check that the sync universe is as expected.
 
     assert_eq!(received_data[1].values, TEST_DATA_MULTIPLE_UNIVERSE[UNIVERSE_CHANNEL_CAPACITY..].to_vec(), "Universe 2 received payload values don't match sent!");
 }
@@ -2203,7 +2205,7 @@ fn test_receiver_source_limit_2() {
         let data = [1, 2, 3];
 
         snd_threads.push(thread::spawn(move || {
-            let ip: SocketAddr = SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap()), ACN_SDT_MULTICAST_PORT + 1 + (i as u16));
+            let ip: SocketAddr = SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[i].parse().unwrap()), ACN_SDT_MULTICAST_PORT + 1 + (i as u16));
             let mut src = SacnSource::with_ip(&format!("Source {}", i), ip).unwrap();
 
             let priority = 100;
@@ -2221,7 +2223,7 @@ fn test_receiver_source_limit_2() {
         }));
     }
 
-    let mut dmx_recv = SacnReceiver::with_ip(SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap()), ACN_SDT_MULTICAST_PORT), SRC_LIMIT).unwrap();
+    let mut dmx_recv = SacnReceiver::with_ip(SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[2].parse().unwrap()), ACN_SDT_MULTICAST_PORT), SRC_LIMIT).unwrap();
 
     // Receivers listen to all universes
     for i in (BASE_UNIVERSE as u16) .. ((SND_THREADS as u16) + (BASE_UNIVERSE as u16)) {
@@ -3310,7 +3312,7 @@ fn test_data_packet_transmit_format() {
 
     let packet = generate_data_packet_raw(CID, universe, source_name.clone(), PRIORITY, sequence, OPTIONS, dmx_data.clone());
 
-    let ip: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), ACN_SDT_MULTICAST_PORT + 1);
+    let ip: SocketAddr = SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap()), ACN_SDT_MULTICAST_PORT + 1);
     let mut source = SacnSource::with_cid_ip(&source_name.clone(), Uuid::from_bytes(CID), ip).unwrap();
 
     source.set_preview_mode(false).unwrap();
@@ -3321,6 +3323,7 @@ fn test_data_packet_transmit_format() {
     let addr: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT);
 
     recv_socket.bind(&addr.into()).unwrap();
+    recv_socket.set_multicast_loop_v4(true).unwrap();
 
     recv_socket.join_multicast_v4(&Ipv4Addr::new(239, 255, 0, 1), &Ipv4Addr::new(0, 0, 0, 0))
                 .unwrap();
@@ -3506,7 +3509,7 @@ fn test_discovery_packet_transmit_format() {
 
     assert_eq!(discovery_packet.len(), DISCOVERY_PACKET_LENGTH_EXPECTED, "Example discovery packet length doesn't match expected");
 
-    let ip: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT + 1);
+    let ip: SocketAddr = SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap()), ACN_SDT_MULTICAST_PORT + 1);
 
     // Creates the source.
     let mut source = SacnSource::with_cid_ip(&str::from_utf8(&SOURCE_NAME).unwrap(), Uuid::from_bytes(CID), ip).unwrap();
