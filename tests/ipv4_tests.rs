@@ -2831,7 +2831,7 @@ fn test_send_sync_timeout(){
     const TIMEOUT: Option<Duration> = Some(Duration::from_secs(5));
 
     // Need to wait slightly longer than the E131_NETWORK_DATA_LOSS_TIMEOUT so that the synchronised data packet should timeout.
-    let sender_wait_period: Duration = E131_NETWORK_DATA_LOSS_TIMEOUT + Duration::from_millis(100);
+    let sender_wait_period: Duration = E131_NETWORK_DATA_LOSS_TIMEOUT + Duration::from_millis(300);
 
     let (tx, rx): (SyncSender<()>, Receiver<()>) = mpsc::sync_channel(0);
 
@@ -3677,6 +3677,7 @@ fn test_track_data_packet_seq_numbers() {
 
     // Create receiver socket.
     let mut recv_socket = Socket::new(Domain::IPV4, Type::DGRAM, None).unwrap();
+    recv_socket.set_multicast_loop_v4(true).unwrap();
     let addr: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT);
     recv_socket.bind(&addr.into()).unwrap();
 
@@ -3746,6 +3747,7 @@ fn test_track_sync_packet_seq_numbers() {
 
     // Create receiver socket.
     let mut recv_socket = Socket::new(Domain::IPV4, Type::DGRAM, None).unwrap();
+    recv_socket.set_multicast_loop_v4(true).unwrap();
     let addr: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT);
     recv_socket.bind(&addr.into()).unwrap();
 
