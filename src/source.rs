@@ -16,7 +16,7 @@
 
 use crate::error::errors::*;
 use crate::net::std_net::StdNet;
-use crate::net::{PendingSend, SacnNet, SendDestination};
+use crate::net::{PendingSend, SacnSourceNet, SendDestination};
 use crate::packet::*;
 
 use std::cmp::min;
@@ -212,7 +212,7 @@ fn build_discovery_packet(
 ///
 /// Allows sending DMX data over an IPv4 or IPv6 network using sACN.
 #[derive(Debug)]
-pub struct SacnSource<N: SacnNet + 'static = StdNet> {
+pub struct SacnSource<N: SacnSourceNet + 'static = StdNet> {
     /// The DMX source used for actually sending the sACN packets.
     /// Protected by a Mutex lock to allow concurrent access between user threads and the update thread below.
     internal: Arc<Mutex<SacnSourceInternal<N>>>,
@@ -230,7 +230,7 @@ pub type SacnSourceStd = SacnSource<StdNet>;
 /// responsible only for driving the core and dispatching the resulting
 /// [`PendingSend`]s through the network backend.
 #[derive(Debug)]
-struct SacnSourceInternal<N: SacnNet> {
+struct SacnSourceInternal<N: SacnSourceNet> {
     /// Pure protocol state machine — no sockets, no threads.
     core: SacnSourceCore,
 
@@ -298,7 +298,7 @@ impl SacnSource<StdNet> {
     }
 }
 
-impl<N: SacnNet + 'static> SacnSource<N> {
+impl<N: SacnSourceNet + 'static> SacnSource<N> {
     /// Constructs a new `SacnSource` with the given name, cid and a custom
     /// [`SacnNet`] backend.
     ///
@@ -671,7 +671,7 @@ impl<N: SacnNet + 'static> SacnSource<N> {
 
 /// By implementing the Drop trait for `SacnSource` it means that the user doesn't have to explicitly clean up the source
 /// and if it goes out of reference it will clean itself up and send the required termination packets etc.
-impl<N: SacnNet + 'static> Drop for SacnSource<N> {
+impl<N: SacnSourceNet + 'static> Drop for SacnSource<N> {
     fn drop(&mut self) {
         match unlock_internal_mut(&mut self.internal) {
             Ok(mut i) => {
@@ -696,7 +696,7 @@ impl<N: SacnNet + 'static> Drop for SacnSource<N> {
     }
 }
 
-impl<N: SacnNet> SacnSourceInternal<N> {
+impl<N: SacnSourceNet> SacnSourceInternal<N> {
     /// Constructs a new `SacnSourceInternal` from a pre-built core and network backend.
     fn new(core: SacnSourceCore, net: N) -> Self {
         Self { core, net }
@@ -879,7 +879,7 @@ impl<N: SacnNet> SacnSourceInternal<N> {
 /// # Errors
 /// `SourceCorrupt`: Returned if the Mutex used to control access to the internal sender is poisoned by a thread encountering
 /// a panic while accessing causing the source to be left in a potentially inconsistent state.
-fn unlock_internal<N: SacnNet>(
+fn unlock_internal<N: SacnSourceNet>(
     internal: &Arc<Mutex<SacnSourceInternal<N>>>,
 ) -> Result<MutexGuard<'_, SacnSourceInternal<N>>> {
     // The PoisonError returned doesn't contain further information and just allows access to the internal potentially inconsistent sender which
@@ -903,7 +903,7 @@ fn unlock_internal<N: SacnNet>(
 /// # Errors
 /// Returns an `SourceCorrupt` error if the Mutex used to control access to the internal sender is poisoned by a thread encountering
 /// a panic while accessing causing the source to be left in a potentially inconsistent state.
-fn unlock_internal_mut<N: SacnNet>(
+fn unlock_internal_mut<N: SacnSourceNet>(
     internal: &mut Arc<Mutex<SacnSourceInternal<N>>>,
 ) -> Result<MutexGuard<'_, SacnSourceInternal<N>>> {
     // The PoisonError returned doesn't contain further information and just allows access to the internal potentially inconsistent sender which
@@ -930,7 +930,7 @@ fn perform_periodic_update<N>(
     src: &mut Arc<Mutex<SacnSourceInternal<N>>>,
 ) -> Result<Option<Instant>>
 where
-    N: SacnNet,
+    N: SacnSourceNet,
 {
     let mut unwrap_src = unlock_internal_mut(src)?;
     unwrap_src.tick()

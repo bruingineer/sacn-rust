@@ -121,7 +121,7 @@ pub struct PendingSend {
 /// backend into the update thread. `&self` send methods allow the backend to
 /// be shared across method calls without requiring `&mut self` on the hot
 /// path.
-pub trait SacnNet: Send {
+pub trait SacnSourceNet: Send {
     // -----------------------------------------------------------------------
     // Interface enumeration
     // -----------------------------------------------------------------------

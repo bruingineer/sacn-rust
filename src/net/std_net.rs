@@ -21,7 +21,7 @@ use if_addrs::get_if_addrs;
 use socket2::{Domain, Socket, Type};
 
 use crate::error::errors::{Result, SacnError};
-use crate::net::{NetIntId, SacnNet};
+use crate::net::{NetIntId, SacnSourceNet};
 
 // ---------------------------------------------------------------------------
 // StdNet
@@ -120,7 +120,7 @@ impl StdNet {
 // SacnNet impl
 // ---------------------------------------------------------------------------
 
-impl SacnNet for StdNet {
+impl SacnSourceNet for StdNet {
     fn enumerate_netints(&self) -> &[NetIntId] {
         &self.sys_netints
     }
