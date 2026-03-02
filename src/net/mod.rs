@@ -50,6 +50,7 @@ pub mod mmsg_net;
 pub struct NetIntId {
     /// The local IPv4 address of this network interface.
     pub addr: Ipv4Addr,
+    pub os_idx: u32,
 }
 
 // ---------------------------------------------------------------------------
@@ -63,7 +64,7 @@ pub enum SendDestination {
     /// the given index within [`SacnNet::enumerate_netints`].
     Multicast {
         /// Index into the netint list returned by [`SacnNet::enumerate_netints`].
-        netint_idx: usize,
+        netint_os_idx: u32,
         /// The multicast group address and port to send to.
         multicast_addr: SocketAddr,
     },
@@ -135,10 +136,19 @@ pub trait SacnNet: Send {
 
     /// Returns the interface index that should be used as the default for
     /// newly registered universes.
-    /// 
+    ///
     /// For [`StdNet`] this is derived from the local address passed at
     /// construction. For custom backends, return 0 if there is no preference.
-    fn default_netint_idx(&self) -> usize;
+    fn default_netint_idx(&self) -> u32;
+
+    /// Resolves a local IPv4 address to the OS interface index used for multicast sends.
+    ///
+    /// Returns `None` if no interface with that address is known to this backend.
+    fn resolve_netint_idx(&self, addr: Ipv4Addr) -> Option<u32> {
+        self.enumerate_netints()
+            .iter()
+            .find_map(|n| if n.addr == addr { Some(n.os_idx) } else { None })
+    }
 
     // -----------------------------------------------------------------------
     // Send primitives (required)
@@ -149,7 +159,7 @@ pub trait SacnNet: Send {
     ///
     /// # Errors
     /// Returns `Io` if the send fails.
-    fn send_mcast(&self, idx: usize, dst: SocketAddr, bytes: &[u8]) -> Result<()>;
+    fn send_mcast(&self, idx: u32, dst: SocketAddr, bytes: &[u8]) -> Result<()>;
 
     /// Send `bytes` to the unicast destination `dst`.
     ///
@@ -176,9 +186,9 @@ pub trait SacnNet: Send {
         for s in sends {
             match &s.destination {
                 SendDestination::Multicast {
-                    netint_idx,
+                    netint_os_idx,
                     multicast_addr,
-                } => self.send_mcast(*netint_idx, *multicast_addr, &s.bytes)?,
+                } => self.send_mcast(*netint_os_idx, *multicast_addr, &s.bytes)?,
                 SendDestination::Unicast { addr } => self.send_ucast(*addr, &s.bytes)?,
             }
         }

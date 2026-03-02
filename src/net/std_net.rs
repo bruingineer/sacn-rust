@@ -10,13 +10,11 @@
 //!   each configured with `IP_MULTICAST_IF` pointing at that interface.
 //! - One shared unicast send socket.
 //!
-//! This matches the ETCLabs sACN socket model: socket count scales with the
-//! number of interfaces, not the number of universes.
-//!
 //! If no non-loopback interfaces are found (e.g. in a CI environment), a
 //! single unbound fallback socket is used for multicast sends so the library
 //! remains functional on minimal hosts.
 
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use if_addrs::get_if_addrs;
@@ -56,12 +54,12 @@ pub struct StdNet {
 
     /// One multicast send socket per entry in `sys_netints`.
     /// If `sys_netints` is empty this contains exactly one fallback socket.
-    mcast_sockets: Vec<Socket>,
+    mcast_sockets: HashMap<u32, Socket>,
 
     /// Shared unicast send socket.
     ucast_socket: Socket,
 
-    default_netint_idx: usize,
+    default_netint_idx: u32,
 }
 
 impl StdNet {
@@ -85,23 +83,25 @@ impl StdNet {
         // Enumerate non-loopback IPv4 interfaces.
         let sys_netints = enumerate_ipv4_netints()?;
 
-        let default_netint_idx = match addr.ip() {
-            IpAddr::V4(v4) if !v4.is_unspecified() => {
-                sys_netints.iter().position(|n| n.addr == v4).unwrap_or(0)
-            }
+        let default_netint_idx: u32 = match addr.ip() {
+            IpAddr::V4(v4) if !v4.is_unspecified() => sys_netints
+                .iter()
+                .find_map(|n| if n.addr == v4 { Some(n.os_idx) } else { None })
+                .unwrap_or(0),
             _ => 0,
         };
 
         // Build one multicast send socket per interface.
-        let mcast_sockets = if sys_netints.is_empty() {
-            // Fallback: single unbound socket. Multicast egress interface will
-            // be chosen by the OS routing table — correct for single-NIC hosts.
-            vec![make_mcast_socket(None)?]
-        } else {
-            sys_netints
-                .iter()
-                .map(|n| make_mcast_socket(Some(n.addr)))
-                .collect::<Result<Vec<_>>>()?
+        let mut mcast_sockets = HashMap::new();
+        // Fallback: single unbound socket. Multicast egress interface will
+        // be chosen by the OS routing table — correct for single-NIC hosts.
+        mcast_sockets.insert(0, make_mcast_socket(None)?);
+        if !sys_netints.is_empty() {
+            for sys_int in &sys_netints {
+                let idx = sys_int.os_idx;
+                let sock = make_mcast_socket(Some(sys_int.addr))?;
+                mcast_sockets.insert(idx, sock);
+            }
         };
 
         // Shared unicast socket bound to the caller-supplied address.
@@ -125,17 +125,23 @@ impl SacnNet for StdNet {
         &self.sys_netints
     }
 
-    fn default_netint_idx(&self) -> usize {
+    fn default_netint_idx(&self) -> u32 {
         self.default_netint_idx
     }
 
-    fn send_mcast(&self, idx: usize, dst: SocketAddr, bytes: &[u8]) -> Result<()> {
+    fn send_mcast(&self, idx: u32, dst: SocketAddr, bytes: &[u8]) -> Result<()> {
         // When sys_netints is empty we have exactly one fallback socket at index 0.
         // Callers should pass idx = 0 in that case (SourceUniverseState default).
         let socket = if self.sys_netints.is_empty() {
-            &self.mcast_sockets[0]
+            &self
+                .mcast_sockets
+                .get(&0)
+                .expect("mcast_sockets always has 0 entry if sys is empty")
         } else {
-            &self.mcast_sockets[idx]
+            &self
+                .mcast_sockets
+                .get(&idx)
+                .expect("only os int indexes are allowed")
         };
 
         socket
@@ -157,7 +163,7 @@ impl SacnNet for StdNet {
     // fn execute_batch(&self, sends: &[super::PendingSend]) -> Result<()> {}
 
     fn set_multicast_ttl(&self, ttl: u32) -> Result<()> {
-        for s in &self.mcast_sockets {
+        for s in self.mcast_sockets.values() {
             s.set_multicast_ttl_v4(ttl)?;
         }
         Ok(())
@@ -165,11 +171,16 @@ impl SacnNet for StdNet {
 
     fn multicast_ttl(&self) -> Result<u32> {
         // All sockets are configured identically — read from the first.
-        Ok(self.mcast_sockets[0].multicast_ttl_v4()?)
+        Ok(self
+            .mcast_sockets
+            .values()
+            .next()
+            .expect("Always should have at least 1 socket")
+            .multicast_ttl_v4()?)
     }
 
     fn set_multicast_loop_v4(&self, val: bool) -> Result<()> {
-        for s in &self.mcast_sockets {
+        for s in self.mcast_sockets.values() {
             s.set_multicast_loop_v4(val)?;
         }
         Ok(())
@@ -177,7 +188,12 @@ impl SacnNet for StdNet {
 
     fn multicast_loop_v4(&self) -> Result<bool> {
         // All sockets are configured identically — read from the first.
-        Ok(self.mcast_sockets[0].multicast_loop_v4()?)
+        Ok(self
+            .mcast_sockets
+            .values()
+            .next()
+            .expect("Always should have at least 1 socket")
+            .multicast_loop_v4()?)
     }
 
     fn ttl(&self) -> Result<u32> {
@@ -210,12 +226,13 @@ fn enumerate_ipv4_netints() -> Result<Vec<NetIntId>> {
         .filter(|iface| {
             // Exclude loopback interfaces — matches ETCLabs behaviour.
             // Loopback can be added explicitly by the user if needed.
-            !iface.is_loopback()
+            !iface.is_loopback() && iface.index.is_some()
         })
         .filter_map(|iface| {
             // IPv4 only for now; IPv6 support added in a later phase.
+            let idx = iface.index.expect("Filtered interfaces with indices in previous filter.");
             match iface.addr.ip() {
-                IpAddr::V4(addr) => Some(NetIntId { addr }),
+                IpAddr::V4(addr) => Some(NetIntId { addr, os_idx: idx }),
                 IpAddr::V6(_) => None,
             }
         })

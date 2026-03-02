@@ -49,11 +49,11 @@ struct SourceUniverseState {
     /// Next sequence number for synchronisation packets on this universe.
     sync_seq: u8,
     /// indices of the interfaces on which this universe should be sent
-    netint_idx: usize,
+    netint_idx: u32,
 }
 
 impl SourceUniverseState {
-    fn new(netint_indices: usize) -> Self {
+    fn new(netint_indices: u32) -> Self {
         Self {
             data_seq: STARTING_SEQUENCE_NUMBER,
             sync_seq: STARTING_SEQUENCE_NUMBER,
@@ -349,8 +349,8 @@ impl<N: SacnNet + 'static> SacnSource<N> {
     ///
     /// # Errors
     /// `UniverseNotRegistered` | `SourceCorrupt`
-    pub fn set_universe_netint(&mut self, universe: u16, idx: usize) -> Result<()> {
-        unlock_internal_mut(&mut self.internal)?.set_universe_netints(universe, idx)
+    pub fn set_universe_netint(&mut self, universe: u16, netint: Ipv4Addr) -> Result<()> {
+        unlock_internal_mut(&mut self.internal)?.set_universe_netint(universe, netint)
     }
 
     /// Returns the number of network interfaces available to this source.
@@ -702,8 +702,11 @@ impl<N: SacnNet> SacnSourceInternal<N> {
         Self { core, net }
     }
 
-    fn set_universe_netints(&mut self, universe: u16, idx: usize) -> Result<()> {
-        self.core.set_universe_netints(universe, idx)
+    fn set_universe_netint(&mut self, universe: u16, if_addr: Ipv4Addr) -> Result<()> {
+        let os_idx = self.net.resolve_netint_idx(if_addr).ok_or_else(|| {
+            SacnError::UnsupportedIpVersion(format!("No interface with address {} found", if_addr))
+        })?;
+        self.core.set_universe_netint(universe, os_idx)
     }
 
     // -----------------------------------------------------------------------
@@ -983,11 +986,11 @@ impl SacnSourceCore {
     ///
     /// # Errors
     /// `UniverseNotRegistered`: Returned if the universe is not registered.
-    fn set_universe_netints(&mut self, universe: u16, idx: usize) -> Result<()> {
+    fn set_universe_netint(&mut self, universe: u16, netint_idx: u32) -> Result<()> {
         match self.universe_states.get_mut(&universe) {
             None => Err(SacnError::UniverseNotRegistered(universe)),
             Some(state) => {
-                state.netint_idx = idx;
+                state.netint_idx = netint_idx;
                 Ok(())
             }
         }
@@ -1053,7 +1056,7 @@ impl SacnSourceCore {
     ///
     /// # Errors
     /// See `register_universe(fn.register_universe.source)` for more details.
-    fn register_universes(&mut self, universes: &[u16], netint_idx: usize) -> Result<()> {
+    fn register_universes(&mut self, universes: &[u16], netint_idx: u32) -> Result<()> {
         for u in universes {
             self.register_universe(*u, netint_idx)?;
         }
@@ -1066,7 +1069,7 @@ impl SacnSourceCore {
     ///
     /// # Errors
     /// `IllegalUniverse`: Returned if the universe is outwith the allowed range, see (`is_universe_in_range`)[`fn.is_universe_in_range.packet`].
-    fn register_universe(&mut self, universe: u16, netint_idx: usize) -> Result<()> {
+    fn register_universe(&mut self, universe: u16, netint_idx: u32) -> Result<()> {
         is_universe_in_range(universe)?;
 
         if let Err(i) = self.universe_order.binary_search(&universe) {
@@ -1428,7 +1431,7 @@ impl SacnSourceCore {
     ///
     /// # Errors
     /// See (`send_universe_discovery_detailed`)[`fn.send_universe_discovery_detailed.source`].
-    fn send_universe_discovery(&self, netint_idx: usize) -> Result<Vec<PendingSend>> {
+    fn send_universe_discovery(&self, netint_idx: u32) -> Result<Vec<PendingSend>> {
         // Given a u16 universe field and self.universes containing no duplicates it means that the maximum total number of universes (65536, ignoring sACN restrictions)
         // divided by the number of universes per page (512) is 128 which therefore fits into the discovery universe 8 bit page field making this cast safe.
         let pages_req: u8 = ((self.universe_order.len() / DISCOVERY_UNI_PER_PAGE) + 1) as u8;
@@ -1472,7 +1475,7 @@ impl SacnSourceCore {
         page: u8,
         last_page: u8,
         universes: &[u16],
-        netint_idx: usize,
+        netint_idx: u32,
     ) -> Result<PendingSend> {
         let bytes = build_discovery_packet(self.cid, &self.name, page, last_page, universes)?;
 
@@ -1486,7 +1489,7 @@ impl SacnSourceCore {
 
         Ok(PendingSend {
             destination: SendDestination::Multicast {
-                netint_idx,
+                netint_os_idx: netint_idx,
                 multicast_addr,
             },
             bytes,
@@ -1496,29 +1499,27 @@ impl SacnSourceCore {
     /// Resolves the send destination: uses `dst_ip` if provided, otherwise derives
     /// the multicast address for the given universe based on the socket's IP family.
     fn resolve_dst(&self, dst_ip: &Option<SocketAddr>, universe: u16) -> Result<SendDestination> {
-        Ok(match dst_ip {
-            Some(addr) => SendDestination::Unicast { addr: (*addr) },
-            None => {
-                let s = universe_to_ipv4_multicast_addr(universe)?;
-                SendDestination::Multicast {
-                    netint_idx: self
-                        .universe_states
-                        .get(&universe)
-                        .expect("Universe_allowed() checked before resolve_dst()")
-                        .netint_idx,
-                    multicast_addr: s.as_socket().expect("Socket should be in IPv4"),
-                }
+        Ok(if let Some(addr) = dst_ip {
+            SendDestination::Unicast { addr: (*addr) }
+        } else {
+            let s = universe_to_ipv4_multicast_addr(universe)?;
+            SendDestination::Multicast {
+                netint_os_idx: self
+                    .universe_states
+                    .get(&universe)
+                    .expect("Universe_allowed() checked before resolve_dst()")
+                    .netint_idx,
+                multicast_addr: s.as_socket().expect("Socket should be in IPv4"),
             }
         })
     }
 
-    fn tick(&mut self, netint_idx: usize) -> Result<(Vec<PendingSend>, Option<Instant>)> {
+    fn tick(&mut self, netint_idx: u32) -> Result<(Vec<PendingSend>, Option<Instant>)> {
         let mut sends = Vec::new();
         let next_deadline;
         if self.is_sending_discovery
             && self.last_discovery_advert_timestamp.elapsed() >= E131_UNIVERSE_DISCOVERY_INTERVAL
         {
-
             sends.extend(self.send_universe_discovery(netint_idx)?);
             self.last_discovery_advert_timestamp = Instant::now();
             next_deadline = self
