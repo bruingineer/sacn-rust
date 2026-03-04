@@ -27,7 +27,7 @@
 //! will call [`SacnNet::execute_batch`] for every group of sends produced by a
 //! single user-facing API call, so batching opportunities are preserved.
 
-use std::net::{Ipv4Addr, SocketAddr};
+use std::{net::{Ipv4Addr, SocketAddr}, time::Duration};
 
 use crate::error::errors::Result;
 
@@ -238,4 +238,106 @@ pub trait SacnSourceNet: Send {
     /// # Errors
     /// Returns `Io` if the option cannot be set.
     fn set_ttl(&self, ttl: u32) -> Result<()>;
+}
+
+
+// ---------------------------------------------------------------------------
+// RCV_BUF_DEFAULT_SIZE
+// ---------------------------------------------------------------------------
+
+/// The default size of the buffer used to receive E1.31 packets.
+///
+/// 1143 bytes is the largest packet required as per Section 8 of ANSI E1.31-2018,
+/// aligned to 64 bits that is 1144 bytes.
+pub const RCV_BUF_DEFAULT_SIZE: usize = 1144;
+
+// ---------------------------------------------------------------------------
+// SacnReceiverNet trait
+// ---------------------------------------------------------------------------
+
+/// Pluggable network backend for sACN receiving.
+///
+/// Implementations own the OS sockets (or equivalent resources) and are
+/// responsible for receiving raw datagrams and managing multicast group membership.
+///
+/// [`std_net::StdReceiverNet`] is the default implementation used by
+/// [`SacnReceiver`](crate::receive::SacnReceiver). A test double can be provided
+/// by implementing this trait on a custom type and constructing a receiver via
+/// `SacnReceiver::with_net`.
+///
+/// # Required methods
+///
+/// All methods are required. There are no provided defaults — every backend
+/// must implement the full interface.
+pub trait SacnReceiverNet {
+    // -----------------------------------------------------------------------
+    // Receive primitive (required)
+    // -----------------------------------------------------------------------
+
+    /// Reads raw bytes from the underlying transport into `buf`.
+    ///
+    /// Returns the number of bytes read.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Io(WouldBlock)` / `Io(TimedOut)` when no data is available
+    /// within the configured socket timeout — callers treat this as a normal
+    /// non-fatal condition and loop.
+    ///
+    /// Returns `TooManyBytesRead` if the datagram is larger than `buf`.
+    fn recv_bytes(&mut self, buf: &mut [u8; RCV_BUF_DEFAULT_SIZE]) -> Result<usize>;
+
+    // -----------------------------------------------------------------------
+    // Multicast group management (required)
+    // -----------------------------------------------------------------------
+
+    /// Joins the IP multicast group corresponding to `universe`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Io` if the socket operation fails.
+    fn listen_multicast_universe(&self, universe: u16) -> Result<()>;
+
+    /// Leaves the IP multicast group corresponding to `universe`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Io` if the socket operation fails.
+    fn mute_multicast_universe(&mut self, universe: u16) -> Result<()>;
+
+    // -----------------------------------------------------------------------
+    // Socket options (required)
+    // -----------------------------------------------------------------------
+
+    /// Sets the read timeout used by [`recv_bytes`](SacnReceiverNet::recv_bytes).
+    ///
+    /// A value of `None` makes the socket blocking (no timeout).
+    ///
+    /// # Errors
+    ///
+    /// Returns `Io` if the option cannot be applied to the underlying socket.
+    fn set_timeout(&mut self, timeout: Option<Duration>) -> Result<()>;
+
+    /// Returns `true` if multicast is supported and enabled on this backend.
+    ///
+    /// When `false`, calls to
+    /// [`listen_multicast_universe`](SacnReceiverNet::listen_multicast_universe)
+    /// and [`mute_multicast_universe`](SacnReceiverNet::mute_multicast_universe)
+    /// should be skipped by the caller.
+    fn is_multicast_enabled(&self) -> bool;
+
+    /// Enables or disables multicast on this backend.
+    ///
+    /// # Errors
+    ///
+    /// Returns `OsOperationUnsupported` if multicast cannot be enabled in the
+    /// current environment (e.g. IPv6 on Windows).
+    fn set_is_multicast_enabled(&mut self, val: bool) -> Result<()>;
+
+    /// Restricts the socket to IPv6 traffic only, or allows dual-stack when `false`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IpVersionError` if the socket is not bound to an IPv6 address.
+    fn set_only_v6(&mut self, val: bool) -> Result<()>;
 }
