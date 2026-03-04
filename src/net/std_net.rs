@@ -16,9 +16,9 @@
 
 use std::collections::HashMap;
 use std::io::Read;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 #[cfg(not(target_os = "windows"))]
 use std::net::Ipv6Addr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
 use if_addrs::get_if_addrs;
@@ -26,9 +26,10 @@ use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 
 use crate::error::errors::{Result, SacnError};
 use crate::net::{NetIntId, RCV_BUF_DEFAULT_SIZE, SacnReceiverNet, SacnSourceNet};
-use crate::packet::{
-    universe_to_ipv4_multicast_addr, universe_to_ipv6_multicast_addr, ACN_SDT_MULTICAST_PORT,
-};
+use crate::packet::{universe_to_ipv4_multicast_addr, universe_to_ipv6_multicast_addr};
+
+#[cfg(not(target_os = "windows"))]
+use crate::packet::ACN_SDT_MULTICAST_PORT;
 
 // ---------------------------------------------------------------------------
 // StdNet
@@ -237,7 +238,9 @@ fn enumerate_ipv4_netints() -> Result<Vec<NetIntId>> {
         })
         .filter_map(|iface| {
             // IPv4 only for now; IPv6 support added in a later phase.
-            let idx = iface.index.expect("Filtered interfaces with indices in previous filter.");
+            let idx = iface
+                .index
+                .expect("Filtered interfaces with indices in previous filter.");
             match iface.addr.ip() {
                 IpAddr::V4(addr) => Some(NetIntId { addr, os_idx: idx }),
                 IpAddr::V6(_) => None,
@@ -577,9 +580,15 @@ impl SacnReceiverNet for StdReceiverNet {
 #[cfg(not(target_os = "windows"))]
 fn create_recv_unix_socket(addr: SocketAddr) -> Result<Socket> {
     let (domain, unspecified_sock) = if addr.is_ipv4() {
-        (Domain::IPV4, SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT))
+        (
+            Domain::IPV4,
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT),
+        )
     } else {
-        (Domain::IPV6, SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT))
+        (
+            Domain::IPV6,
+            SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT),
+        )
     };
 
     let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
@@ -603,8 +612,11 @@ fn create_recv_unix_socket(addr: SocketAddr) -> Result<Socket> {
 /// Will return an error if the socket cannot be bound to the given address, see (bind)[fn.bind.Socket].
 #[cfg(target_os = "windows")]
 fn create_recv_win_socket(addr: SocketAddr) -> Result<Socket> {
-
-    let domain = if addr.is_ipv4() { Domain::IPV4 } else { Domain::IPV6 };
+    let domain = if addr.is_ipv4() {
+        Domain::IPV4
+    } else {
+        Domain::IPV6
+    };
 
     let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
 
@@ -629,7 +641,7 @@ fn ip_family_error(context: &str, family: i32) -> SacnError {
 /// The IPv6 arm uses interface index 0 (OS default).
 ///
 /// # Errors
-/// Returns `IpVersionError` if `addr` is AF_INET but `interface_addr` is IPv6.
+/// Returns `IpVersionError` if `addr` is `AF_INET` but `interface_addr` is IPv6.
 /// Returns `UnsupportedIpVersion` for unknown address families or malformed `SockAddr` values.
 /// Returns `Io` if the underlying socket call fails.
 fn join_multicast(socket: &Socket, addr: SockAddr, interface_addr: IpAddr) -> Result<()> {
@@ -669,8 +681,8 @@ fn join_multicast(socket: &Socket, addr: SockAddr, interface_addr: IpAddr) -> Re
 /// On Unix, both IPv4 and IPv6 are supported.
 ///
 /// # Errors
-/// Returns `OsOperationUnsupported` on Windows when `addr` is AF_INET6.
-/// Returns `IpVersionError` if `addr` is AF_INET but `interface_addr` is IPv6.
+/// Returns `OsOperationUnsupported` on Windows when `addr` is `AF_INET6`.
+/// Returns `IpVersionError` if `addr` is `AF_INET` but `interface_addr` is IPv6.
 /// Returns `UnsupportedIpVersion` for unknown address families or malformed `SockAddr` values.
 /// Returns `Io` if the underlying socket call fails.
 fn leave_multicast(socket: &Socket, addr: SockAddr, interface_addr: IpAddr) -> Result<()> {
@@ -698,9 +710,14 @@ fn leave_multicast(socket: &Socket, addr: SockAddr, interface_addr: IpAddr) -> R
 fn leave_multicast_v4(socket: &Socket, group: &Ipv4Addr, interface_addr: IpAddr) -> Result<()> {
     match interface_addr {
         IpAddr::V4(ref interface_v4) => {
-            socket.leave_multicast_v4(group, interface_v4).map_err(|e| {
-                SacnError::Io(std::io::Error::new(e.kind(), "Failed to leave IPv4 multicast"))
-            })?;
+            socket
+                .leave_multicast_v4(group, interface_v4)
+                .map_err(|e| {
+                    SacnError::Io(std::io::Error::new(
+                        e.kind(),
+                        "Failed to leave IPv4 multicast",
+                    ))
+                })?;
         }
         IpAddr::V6(_) => return Err(SacnError::IpVersionError()),
     }
@@ -716,12 +733,13 @@ fn leave_multicast_v6(socket: &Socket, addr: &SockAddr) -> Result<()> {
     {
         // Silence the unused-variable warning — addr is checked for well-formedness but the call is rejected.
         let _ = (socket, addr);
-        return Err(SacnError::OsOperationUnsupported(
+        Err(SacnError::OsOperationUnsupported(
             "IPv6 multicast is currently unsupported on Windows".to_string(),
-        ));
+        ))
     }
     #[cfg(not(target_os = "windows"))]
-    match addr.as_socket_ipv6() {
+    {
+        match addr.as_socket_ipv6() {
         Some(a) => {
             socket.leave_multicast_v6(a.ip(), 0).map_err(|e| {
                 SacnError::Io(std::io::Error::new(e.kind(), "Failed to leave IPv6 multicast"))
@@ -731,5 +749,6 @@ fn leave_multicast_v6(socket: &Socket, addr: &SockAddr) -> Result<()> {
             "IP version recognised as AF_INET6 but not actually usable as AF_INET6 so must be unknown type".to_string(),
         )),
     }
-    Ok(())
+        Ok(())
+    }
 }
