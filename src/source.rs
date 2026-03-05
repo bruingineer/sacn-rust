@@ -300,10 +300,10 @@ impl SacnSource<StdNet> {
 
 impl<N: SacnSourceNet + 'static> SacnSource<N> {
     /// Constructs a new `SacnSource` with the given name, cid and a custom
-    /// [`SacnNet`] backend.
+    /// [`SacnSourceNet`] backend.
     ///
     /// This is the primary constructor when using an alternative network
-    /// backend (e.g. a test double or `MmsgNet`).
+    /// backend (e.g. a test double or user provided).
     ///
     /// # Errors
     /// `MalformedSourceName`: Returned if the given source name is longer than the maximum allowed size of `E131_SOURCE_NAME_FIELD_LENGTH`.

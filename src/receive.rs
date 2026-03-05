@@ -223,7 +223,14 @@ impl SacnReceiver<StdReceiverNet> {
 }
 
 impl<N: SacnReceiverNet> SacnReceiver<N> {
-
+   /// Constructs a new `SacnReceiver` with the given name, cid and a custom
+    /// [`SacnReceiverNet`] backend.
+    ///
+    /// This is the primary constructor when using an alternative network
+    /// backend (e.g. a test double or user provided).
+    ///
+    /// # Errors
+    /// `SourceLimitZero`: Returned if the `source_limit` is Some(0).
     pub fn with_net(net: N, source_limit: Option<usize>) -> Result<SacnReceiver<N>> {
         if let Some(x) = source_limit && x == 0 {
             return Err(SacnError::SourceLimitZero());
