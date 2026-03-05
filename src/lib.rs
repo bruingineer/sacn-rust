@@ -15,10 +15,6 @@
 //!
 //! Installation instructions are detailed within the README file.
 //!
-//!
-//!
-//! This file was modified as part of a University of St Andrews Computer Science BSC Senior Honours Dissertation Project.
-//!
 //! # Examples
 //!
 //! Creating an sACN receiver and receiving data. This automatically handles receiving synchronised data at the right time with the array of received data
@@ -183,7 +179,7 @@
 //! ```
 
 #![doc(html_root_url = "https://docs.rs/sacn/")]
-// #![warn(missing_docs)]
+#![warn(missing_docs)]
 // Recursion limit for error_chain.
 #![recursion_limit = "1024"]
 

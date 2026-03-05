@@ -5,11 +5,11 @@
 
 //! Network abstraction layer for sACN.
 //!
-//! This module defines the [`SacnNet`] trait and the associated types used to
+//! This module defines the [`SacnSourceNet`] trait and the associated types used to
 //! decouple E1.31 protocol logic from OS networking primitives.
 //!
 //! The core protocol state machine (`SacnSourceCore`) produces [`PendingSend`]
-//! values describing *what* to send and *where*. A [`SacnNet`] implementation
+//! values describing *what* to send and *where*. A [`SacnSourceNet`] implementation
 //! is responsible for *how* those sends are executed — using standard UDP
 //! sockets, `sendmmsg`, an embedded stack, or a test double.
 //!
@@ -22,12 +22,15 @@
 //!
 //! # Implementing a custom backend
 //!
-//! Implement [`SacnNet`] on your own type and pass it to
+//! Implement [`SacnSourceNet`] on your own type and pass it to
 //! `SacnSource::with_net(your_backend)`. The protocol core and runtime wrapper
-//! will call [`SacnNet::execute_batch`] for every group of sends produced by a
+//! will call [`SacnSourceNet::execute_batch`] for every group of sends produced by a
 //! single user-facing API call, so batching opportunities are preserved.
 
-use std::{net::{Ipv4Addr, SocketAddr}, time::Duration};
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    time::Duration,
+};
 
 use crate::error::errors::Result;
 
@@ -50,6 +53,7 @@ pub mod mmsg_net;
 pub struct NetIntId {
     /// The local IPv4 address of this network interface.
     pub addr: Ipv4Addr,
+    /// The network interface OS index
     pub os_idx: u32,
 }
 
@@ -61,9 +65,9 @@ pub struct NetIntId {
 #[derive(Debug, Clone)]
 pub enum SendDestination {
     /// Send to an IP multicast group via the socket bound to the interface at
-    /// the given index within [`SacnNet::enumerate_netints`].
+    /// the given index within [`SacnSourceNet::enumerate_netints`].
     Multicast {
-        /// Index into the netint list returned by [`SacnNet::enumerate_netints`].
+        /// Index into the netint list returned by [`SacnSourceNet::enumerate_netints`].
         netint_os_idx: u32,
         /// The multicast group address and port to send to.
         multicast_addr: SocketAddr,
@@ -79,10 +83,10 @@ pub enum SendDestination {
 // PendingSend
 // ---------------------------------------------------------------------------
 
-/// A fully-formed datagram ready to be handed to a [`SacnNet`] backend.
+/// A fully-formed datagram ready to be handed to a [`SacnSourceNet`] backend.
 ///
 /// Produced by `SacnSourceCore` methods (`send`, `send_sync_packet`, `tick`,
-/// etc.) and consumed by [`SacnNet::execute_batch`].
+/// etc.) and consumed by [`SacnSourceNet::execute_batch`].
 ///
 /// The bytes are already packed; the backend only needs to choose the right
 /// socket and call the appropriate send syscall.
@@ -95,7 +99,7 @@ pub struct PendingSend {
 }
 
 // ---------------------------------------------------------------------------
-// SacnNet trait
+// SacnSourceNet trait
 // ---------------------------------------------------------------------------
 
 /// Pluggable network backend for sACN sending.
@@ -106,7 +110,7 @@ pub struct PendingSend {
 ///
 /// The protocol core (`SacnSourceCore`) has no knowledge of this trait — it
 /// only produces [`PendingSend`] values. The runtime wrapper
-/// (`SacnSourceInternal`) calls [`SacnNet::execute_batch`] to dispatch them.
+/// (`SacnSourceInternal`) calls [`SacnSourceNet::execute_batch`] to dispatch them.
 ///
 /// # Required methods
 ///
@@ -239,7 +243,6 @@ pub trait SacnSourceNet: Send {
     /// Returns `Io` if the option cannot be set.
     fn set_ttl(&self, ttl: u32) -> Result<()>;
 }
-
 
 // ---------------------------------------------------------------------------
 // RCV_BUF_DEFAULT_SIZE

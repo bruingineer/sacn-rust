@@ -129,12 +129,12 @@ pub struct DMXData {
 /// }
 /// ```
 pub struct SacnReceiver<N: SacnReceiverNet = StdReceiverNet> {
-    /// The network backend used for receiving datagrams and managing multicast membership.
-    receiver: N,
-
+    /// Pure protocol state machine
     core: SacnReceiverCore,
-}
 
+    /// The network backend used for receiving datagrams and managing multicast membership.
+    net: N,
+}
 
 /// Allows receiving dmx or other (different startcode) data using sacn.
 /// Uses socket2 backend for receiving.
@@ -177,7 +177,7 @@ struct UniversePage {
 /// Allows debug ({:?}) printing of the `SacnReceiver`, used during debugging.
 impl<N: SacnReceiverNet + fmt::Debug> fmt::Debug for SacnReceiver<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.receiver)?;
+        write!(f, "{:?}", self.net)?;
         write!(f, "{:?}", self.core.waiting_data)?;
         write!(f, "{:?}", self.core.universes)?;
         write!(f, "{:?}", self.core.discovered_sources)?;
@@ -213,17 +213,16 @@ impl SacnReceiver<StdReceiverNet> {
     ///
     /// Will return an error if the created `SacnReceiver` fails to listen to the `E1.31_DISCOVERY_UNIVERSE`.
     /// For more details see `SacnReceiver::listen_universes()`.
-    pub fn with_ip(ip: SocketAddr, source_limit: Option<usize>) -> Result<SacnReceiver<StdReceiverNet>> {
+    pub fn with_ip(
+        ip: SocketAddr,
+        source_limit: Option<usize>,
+    ) -> Result<SacnReceiver<StdReceiverNet>> {
         SacnReceiver::with_net(StdReceiverNet::new(ip)?, source_limit)
     }
-
-    // pub fn set_ipv6_only(&mut self, val: bool) -> Result<()> {
-    //     self.receiver.set_only_v6(val)
-    // }
 }
 
 impl<N: SacnReceiverNet> SacnReceiver<N> {
-   /// Constructs a new `SacnReceiver` with the given name, cid and a custom
+    /// Constructs a new `SacnReceiver` with the given name, cid and a custom
     /// [`SacnReceiverNet`] backend.
     ///
     /// This is the primary constructor when using an alternative network
@@ -232,11 +231,13 @@ impl<N: SacnReceiverNet> SacnReceiver<N> {
     /// # Errors
     /// `SourceLimitZero`: Returned if the `source_limit` is Some(0).
     pub fn with_net(net: N, source_limit: Option<usize>) -> Result<SacnReceiver<N>> {
-        if let Some(x) = source_limit && x == 0 {
+        if let Some(x) = source_limit
+            && x == 0
+        {
             return Err(SacnError::SourceLimitZero());
         }
         let core = SacnReceiverCore::new(source_limit);
-        let mut sri = SacnReceiver{receiver: net, core};
+        let mut sri = SacnReceiver { core, net };
         sri.listen_universes(&[E131_DISCOVERY_UNIVERSE])?;
         Ok(sri)
     }
@@ -254,19 +255,19 @@ impl<N: SacnReceiverNet> SacnReceiver<N> {
     /// Will return an `OsOperationUnsupported` error if attempting to set the flag to true in an environment that multicast
     /// isn't supported i.e. Ipv6 on Windows.
     pub fn set_is_multicast_enabled(&mut self, val: bool) -> Result<()> {
-        self.receiver.set_is_multicast_enabled(val)
+        self.net.set_is_multicast_enabled(val)
     }
 
     /// Returns true if multicast is enabled on this receiver and false if not.
     /// This flag is set when the receiver is created as not all environments currently support IP multicast.
     /// E.g. IPv6 Windows IP Multicast is currently unsupported.
     pub fn is_multicast_enabled(&self) -> bool {
-        self.receiver.is_multicast_enabled()
+        self.net.is_multicast_enabled()
     }
 
     /// Allow only receiving on Ipv6.
     pub fn set_ipv6_only(&mut self, val: bool) -> Result<()> {
-        self.receiver.set_only_v6(val)
+        self.net.set_only_v6(val)
     }
 
     /// Allows receiving from the given universe and starts listening to the multicast addresses which corresponds to the given universe.
@@ -279,8 +280,6 @@ impl<N: SacnReceiverNet> SacnReceiver<N> {
     /// # Errors
     /// Returns an `SacnError::IllegalUniverse` error if the given universe is outwith the allowed range of universes,
     /// see (`is_universe_in_range`)[`fn.is_universe_in_range.packet`].
-    ///
-    ///
     pub fn listen_universes(&mut self, universes: &[u16]) -> Result<()> {
         for u in universes {
             is_universe_in_range(*u)?;
@@ -288,7 +287,7 @@ impl<N: SacnReceiverNet> SacnReceiver<N> {
 
         for &u in universes {
             if self.core.register_universe(u).is_some() && self.is_multicast_enabled() {
-                self.receiver.listen_multicast_universe(u)?;
+                self.net.listen_multicast_universe(u)?;
             }
         }
 
@@ -304,8 +303,12 @@ impl<N: SacnReceiverNet> SacnReceiver<N> {
     /// Returns `UniverseNotFound` if the given universe wasn't already being listened to.
     pub fn mute_universe(&mut self, universe: u16) -> Result<()> {
         is_universe_in_range(universe)?;
-        self.core.deregister_universe(universe)?;
-        self.receiver.mute_multicast_universe(universe)
+
+        if self.is_multicast_enabled() {
+            self.core.deregister_universe(universe)?;
+            self.net.mute_multicast_universe(universe)?;
+        }
+        Ok(())
     }
 
     /// Attempt to receive data from any of the registered universes.
@@ -402,12 +405,12 @@ impl<N: SacnReceiverNet> SacnReceiver<N> {
                 E131_NETWORK_DATA_LOSS_TIMEOUT
             };
 
-            self.receiver.set_timeout(Some(actual_timeout))?; // "Failed to set a timeout value for the receiver"
+            self.net.set_timeout(Some(actual_timeout))?; // "Failed to set a timeout value for the receiver"
 
             // Zero out the buffer before receiving. This may be redundant since recv should pack the whole buffer.
             buf.fill(0);
 
-            match self.receiver.recv_bytes(&mut buf) {
+            match self.net.recv_bytes(&mut buf) {
                 Ok(n) => match self.core.handle_packet(&buf[..n])? {
                     ReceiverCoreOutput::Data(dmxdatas) => return Ok(dmxdatas),
                     ReceiverCoreOutput::SourceDiscovered(name) => {
@@ -418,7 +421,7 @@ impl<N: SacnReceiverNet> SacnReceiver<N> {
                     ReceiverCoreOutput::Pending => {}
                     ReceiverCoreOutput::JoinUniverse(u) => {
                         if self.is_multicast_enabled() {
-                            self.receiver.listen_multicast_universe(u)?;
+                            self.net.listen_multicast_universe(u)?;
                         }
                     }
                 },
@@ -566,7 +569,7 @@ impl<N: SacnReceiverNet> SacnReceiver<N> {
     }
 }
 
-/// By implementing the Drop trait for `SacnReceiverNet` it means that the user doesn't have to explicitly clean up the receiver
+/// By implementing the Drop trait for `SacnReceiver<N>` it means that the user doesn't have to explicitly clean up the receiver
 /// and if it goes out of reference it will clean itself up.
 impl<N: SacnReceiverNet> Drop for SacnReceiver<N> {
     fn drop(&mut self) {
@@ -645,7 +648,7 @@ struct SacnReceiverCore {
 enum ReceiverCoreOutput {
     /// Ready data to return to the caller immediately
     Data(Vec<DMXData>),
-    /// A source was fully discoverd - name is returned for the announce flag
+    /// A source was fully discovered - name is returned for the announce flag
     SourceDiscovered(String),
     /// Packet was handled but nothing to return yet (waiting for sync, discovery page)
     Pending,
@@ -688,9 +691,33 @@ impl SacnReceiverCore {
         }
     }
 
+    /// Parses a raw E1.31 datagram and dispatches it to the appropriate handler.
     ///
-    /// #errors
-    /// `OutOfSequence` | `UniverseTerminated` | `SourcesExceededError`
+    /// The packet is parsed from `bytes` into an [`AcnRootLayerProtocol`] and then
+    /// matched against the three possible payload types:
+    ///
+    /// - **Data packets** are forwarded to [`handle_data_packet`](SacnReceiverCore::handle_data_packet).
+    ///   Returns [`ReceiverCoreOutput::Data`] when the packet is ready to act on,
+    ///   [`ReceiverCoreOutput::JoinUniverse`] when a new synchronisation universe must be joined,
+    ///   or [`ReceiverCoreOutput::Pending`] when the data is being held awaiting synchronisation.
+    /// - **Synchronisation packets** are forwarded to [`handle_sync_packet`](SacnReceiverCore::handle_sync_packet).
+    ///   Returns [`ReceiverCoreOutput::Data`] with any previously-held data that is now released,
+    ///   or [`ReceiverCoreOutput::Pending`] if nothing was waiting.
+    /// - **Universe discovery packets** are forwarded to [`handle_universe_discovery_packet`](SacnReceiverCore::handle_universe_discovery_packet).
+    ///   Returns [`ReceiverCoreOutput::SourceDiscovered`] when a source is fully discovered across
+    ///   all pages, or [`ReceiverCoreOutput::Pending`] while further pages are still expected.
+    ///
+    /// # Errors
+    /// `SacnParsePackError`: Returned if `bytes` cannot be parsed as a valid E1.31 packet.
+    ///
+    /// `OutOfSequence`: Returned if a data or synchronisation packet is received out of order
+    /// as per ANSI E1.31-2018 Section 6.7.2 Sequence Numbering.
+    ///
+    /// `UniverseTerminated`: Returned if a data packet with the `stream_terminated` flag is received
+    /// and the `announce_stream_termination` flag is set.
+    ///
+    /// `SourcesExceededError`: Returned if a new source would exceed the configured source limit
+    /// as per ANSI E1.31-2018 Section 6.2.3.3.
     fn handle_packet(&mut self, bytes: &[u8]) -> Result<ReceiverCoreOutput> {
         let pkt = AcnRootLayerProtocol::parse(bytes)?;
         Ok(match pkt.pdu.data {
@@ -1542,7 +1569,7 @@ fn check_timeouts(
                     break;
                 }
             }
-            if timedout_uni.is_none() {
+            if timedout_uni.is_some() {
                 break;
             }
         }

@@ -5,7 +5,7 @@
 
 //! Standard UDP backend for sACN using [`socket2`].
 //!
-//! [`StdNet`] is the default [`SacnNet`] implementation. It owns:
+//! [`StdSourceNet`] is the default [`SacnSourceNet`] implementation. It owns:
 //! - One multicast send socket per non-loopback IPv4 network interface,
 //!   each configured with `IP_MULTICAST_IF` pointing at that interface.
 //! - One shared unicast send socket.
@@ -32,15 +32,15 @@ use crate::packet::{universe_to_ipv4_multicast_addr, universe_to_ipv6_multicast_
 use crate::packet::ACN_SDT_MULTICAST_PORT;
 
 // ---------------------------------------------------------------------------
-// StdNet
+// StdSourceNet
 // ---------------------------------------------------------------------------
 
 /// Standard UDP network backend for sACN.
 ///
-/// Created by [`StdNet::new`] and passed to `SacnSource::with_net`. Users
-/// relying on the default type parameter (`SacnSource<StdNet>`) do not need
+/// Created by [`StdSourceNet::new`] and passed to `SacnSource::with_net`. Users
+/// relying on the default type parameter (`SacnSource<StdSourceNet>`) do not need
 /// to construct this directly — `SacnSource::with_ip` and friends call
-/// [`StdNet::new`] internally.
+/// [`StdSourceNet::new`] internally.
 ///
 /// # Socket layout
 ///
@@ -51,12 +51,12 @@ use crate::packet::ACN_SDT_MULTICAST_PORT;
 ///
 /// # Fallback behaviour
 ///
-/// If [`get_if_addrs`] returns no non-loopback IPv4 interfaces, `StdNet`
+/// If [`get_if_addrs`] returns no non-loopback IPv4 interfaces, `StdSourceNet`
 /// creates a single unbound socket used for all multicast sends. This keeps
 /// the library working on minimal hosts (CI, loopback-only containers) at the
 /// cost of losing explicit interface selection.
 #[derive(Debug)]
-pub struct StdNet {
+pub struct StdSourceNet {
     /// Non-loopback IPv4 interfaces available at construction time.
     sys_netints: Vec<NetIntId>,
 
@@ -70,8 +70,8 @@ pub struct StdNet {
     default_netint_idx: u32,
 }
 
-impl StdNet {
-    /// Constructs a new `StdNet` bound to the given local address.
+impl StdSourceNet {
+    /// Constructs a new `StdSourceNet` bound to the given local address.
     ///
     /// `addr` is used to bind the unicast socket. The port is typically
     /// `ACN_SDT_MULTICAST_PORT + 1` to avoid conflicts with receiver sockets
@@ -84,7 +84,7 @@ impl StdNet {
     pub fn new(addr: SocketAddr) -> Result<Self> {
         if !addr.is_ipv4() {
             return Err(SacnError::UnsupportedIpVersion(
-                "StdNet currently only supports IPv4".to_string(),
+                "StdSourceNet currently only supports IPv4".to_string(),
             ));
         }
 
@@ -115,7 +115,7 @@ impl StdNet {
         // Shared unicast socket bound to the caller-supplied address.
         let ucast_socket = make_ucast_socket(addr)?;
 
-        Ok(StdNet {
+        Ok(StdSourceNet {
             sys_netints,
             mcast_sockets,
             ucast_socket,
@@ -125,10 +125,10 @@ impl StdNet {
 }
 
 // ---------------------------------------------------------------------------
-// SacnNet impl
+// SacnSourceNet impl
 // ---------------------------------------------------------------------------
 
-impl SacnSourceNet for StdNet {
+impl SacnSourceNet for StdSourceNet {
     fn enumerate_netints(&self) -> &[NetIntId] {
         &self.sys_netints
     }
@@ -154,7 +154,7 @@ impl SacnSourceNet for StdNet {
 
         socket
             .send_to(bytes, &dst.into())
-            .map_err(|e| std::io::Error::new(e.kind(), "StdNet: multicast send_to failed"))?;
+            .map_err(|e| std::io::Error::new(e.kind(), "StdSourceNet: multicast send_to failed"))?;
 
         Ok(())
     }
@@ -162,7 +162,7 @@ impl SacnSourceNet for StdNet {
     fn send_ucast(&self, dst: SocketAddr, bytes: &[u8]) -> Result<()> {
         self.ucast_socket
             .send_to(bytes, &dst.into())
-            .map_err(|e| std::io::Error::new(e.kind(), "StdNet: unicast send_to failed"))?;
+            .map_err(|e| std::io::Error::new(e.kind(), "StdSourceNet: unicast send_to failed"))?;
 
         Ok(())
     }
@@ -220,7 +220,7 @@ impl SacnSourceNet for StdNet {
 /// Enumerates non-loopback IPv4 network interfaces on the current host.
 ///
 /// Returns an empty `Vec` if no such interfaces exist rather than an error,
-/// so the fallback socket path in [`StdNet::new`] can handle minimal hosts.
+/// so the fallback socket path in [`StdSourceNet::new`] can handle minimal hosts.
 fn enumerate_ipv4_netints() -> Result<Vec<NetIntId>> {
     let ifaces = get_if_addrs().map_err(|e| {
         std::io::Error::new(
@@ -262,7 +262,7 @@ fn enumerate_ipv4_netints() -> Result<Vec<NetIntId>> {
 ///   use the sACN port simultaneously.
 /// - `IP_MULTICAST_IF`: pins multicast egress to the given interface.
 /// - `IP_MULTICAST_TTL`: left at OS default (1); caller may override via
-///   [`StdNet::set_multicast_ttl`].
+///   [`StdSourceNet::set_multicast_ttl`].
 fn make_mcast_socket(interface_addr: Option<Ipv4Addr>) -> Result<Socket> {
     let socket = Socket::new(Domain::IPV4, Type::DGRAM, None)?;
 
@@ -607,9 +607,9 @@ fn create_recv_unix_socket(addr: SocketAddr) -> Result<Socket> {
 /// `SO_REUSEADDR` allows multiple processes to share the sACN port.
 ///
 /// # Errors
-/// Will return an error if the socket cannot be created, see (`Socket::new`)[fn.new.Socket].
+/// Will return an error if the socket cannot be created, see [`Socket::new`].
 ///
-/// Will return an error if the socket cannot be bound to the given address, see (bind)[fn.bind.Socket].
+/// Will return an error if the socket cannot be bound to the given address, see [`Socket::bind`].
 #[cfg(target_os = "windows")]
 fn create_recv_win_socket(addr: SocketAddr) -> Result<Socket> {
     let domain = if addr.is_ipv4() {
@@ -740,15 +740,15 @@ fn leave_multicast_v6(socket: &Socket, addr: &SockAddr) -> Result<()> {
     #[cfg(not(target_os = "windows"))]
     {
         match addr.as_socket_ipv6() {
-        Some(a) => {
-            socket.leave_multicast_v6(a.ip(), 0).map_err(|e| {
-                SacnError::Io(std::io::Error::new(e.kind(), "Failed to leave IPv6 multicast"))
-            })?;
+            Some(a) => {
+                socket.leave_multicast_v6(a.ip(), 0).map_err(|e| {
+                    SacnError::Io(std::io::Error::new(e.kind(), "Failed to leave IPv6 multicast"))
+                })?;
+            }
+            None => return Err(SacnError::UnsupportedIpVersion(
+                "IP version recognised as AF_INET6 but not actually usable as AF_INET6 so must be unknown type".to_string(),
+            )),
         }
-        None => return Err(SacnError::UnsupportedIpVersion(
-            "IP version recognised as AF_INET6 but not actually usable as AF_INET6 so must be unknown type".to_string(),
-        )),
-    }
         Ok(())
     }
 }

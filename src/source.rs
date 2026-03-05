@@ -15,7 +15,7 @@
 //
 
 use crate::error::errors::*;
-use crate::net::std_net::StdNet;
+use crate::net::std_net::StdSourceNet;
 use crate::net::{PendingSend, SacnSourceNet, SendDestination};
 use crate::packet::*;
 
@@ -212,7 +212,7 @@ fn build_discovery_packet(
 ///
 /// Allows sending DMX data over an IPv4 or IPv6 network using sACN.
 #[derive(Debug)]
-pub struct SacnSource<N: SacnSourceNet + 'static = StdNet> {
+pub struct SacnSource<N: SacnSourceNet + 'static = StdSourceNet> {
     /// The DMX source used for actually sending the sACN packets.
     /// Protected by a Mutex lock to allow concurrent access between user threads and the update thread below.
     internal: Arc<Mutex<SacnSourceInternal<N>>>,
@@ -223,28 +223,28 @@ pub struct SacnSource<N: SacnSourceNet + 'static = StdNet> {
 }
 
 /// Convenience alias for the common case of using the standard UDP backend.
-pub type SacnSourceStd = SacnSource<StdNet>;
+pub type SacnSourceStd = SacnSource<StdSourceNet>;
 
-/// /// Internal sACN sender. Thin runtime wrapper around [`SacnSourceCore`] and a
+/// Internal sACN sender. Thin runtime wrapper around [`SacnSourceCore`] and a
 /// [`SacnNet`] backend. All protocol logic lives in the core; this struct is
 /// responsible only for driving the core and dispatching the resulting
 /// [`PendingSend`]s through the network backend.
 #[derive(Debug)]
 struct SacnSourceInternal<N: SacnSourceNet> {
-    /// Pure protocol state machine — no sockets, no threads.
+    /// Pure protocol state machine
     core: SacnSourceCore,
 
     /// Pluggable network backend — owns sockets and dispatches datagrams.
     net: N,
 }
 
-impl SacnSource<StdNet> {
+impl SacnSource<StdSourceNet> {
     /// Constructs a new `SacnSource` with the given name, binding to an IPv4 address.
     /// This generates a new CID automatically using random values.
     ///
     /// # Errors
     /// See (`with_cid_ip`)[`with_cid_ip`]
-    pub fn new_v4(name: &str) -> Result<SacnSource<StdNet>> {
+    pub fn new_v4(name: &str) -> Result<SacnSource<StdSourceNet>> {
         SacnSource::with_cid_v4(name, Uuid::new_v4())
     }
 
@@ -293,7 +293,7 @@ impl SacnSource<StdNet> {
     ///
     /// `MalformedSourceName`: Returned if the given source name is longer than the maximum allowed size of `E131_SOURCE_NAME_FIELD_LENGTH`.
     pub fn with_cid_ip(name: &str, cid: Uuid, ip: SocketAddr) -> Result<SacnSource> {
-        let net = StdNet::new(ip)?;
+        let net = StdSourceNet::new(ip)?;
         SacnSource::with_net(name, cid, net)
     }
 }
@@ -440,7 +440,7 @@ impl<N: SacnSourceNet + 'static> SacnSource<N> {
     /// Note as per ANSI-E1.31-2018 Appendix B.1 it is recommended to have a small delay before sending the follow up sync packet.
     ///
     /// # Errors
-    /// `SenderAlreadyTerminated`: Returned if this method is called on an `SacnReceiverInternal` that has already terminated.
+    /// `SenderAlreadyTerminated`: Returned if this method is called on an `SacnSourceInternal` that has already terminated.
     ///
     /// `InvalidInput`: Returned if the data array has length 0 or if an insufficient number of universes for the given data are provided (each universe takes 513 bytes of data).
     ///
