@@ -6,6 +6,10 @@ ip addr add 192.168.0.8/24 dev lo || true
 ip route add 224.0.0.0/4 dev lo || true
 ip route add 239.255.0.0/16 dev lo || true
 
+ip addr add 2a02:c7f:d20a:c600:a502:2dae:7716:601b/64 dev lo
+ip addr add 2a02:c7f:d20a:c600:a502:2dae:7716:601c/64 dev lo
+ip addr add 2a02:c7f:d20a:c600:a502:2dae:7716:601d/64 dev lo
+
 ip link set dev lo multicast on
 
 ip a show dev lo
