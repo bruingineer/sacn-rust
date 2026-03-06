@@ -27,17 +27,14 @@
 //! will call [`SacnSourceNet::execute_batch`] for every group of sends produced by a
 //! single user-facing API call, so batching opportunities are preserved.
 
-use std::{
-    net::{Ipv4Addr, SocketAddr},
+use core::{
+    net::{IpAddr, SocketAddr},
     time::Duration,
 };
 
 use crate::error::errors::Result;
 
 pub mod std_net;
-
-#[cfg(all(target_os = "linux", feature = "mmsg-net"))]
-pub mod mmsg_net;
 
 // ---------------------------------------------------------------------------
 // NetIntId
@@ -49,12 +46,19 @@ pub mod mmsg_net;
 ///
 /// The `addr` field is the local unicast address of the interface and is used
 /// to set `IP_MULTICAST_IF` on the per-interface multicast send socket.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NetIntId {
     /// The local IPv4 address of this network interface.
-    pub addr: Ipv4Addr,
+    pub addr: IpAddr,
     /// The network interface OS index
     pub os_idx: u32,
+}
+
+/// Holds the IP version used for a specific instance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IpVersion {
+    V4,
+    V6,
 }
 
 // ---------------------------------------------------------------------------
@@ -148,11 +152,13 @@ pub trait SacnSourceNet: Send {
     /// Resolves a local IPv4 address to the OS interface index used for multicast sends.
     ///
     /// Returns `None` if no interface with that address is known to this backend.
-    fn resolve_netint_idx(&self, addr: Ipv4Addr) -> Option<u32> {
+    fn resolve_netint_idx(&self, addr: IpAddr) -> Option<u32> {
         self.enumerate_netints()
             .iter()
             .find_map(|n| if n.addr == addr { Some(n.os_idx) } else { None })
     }
+
+    fn ip_version(&self) -> IpVersion;
 
     // -----------------------------------------------------------------------
     // Send primitives (required)
@@ -223,13 +229,13 @@ pub trait SacnSourceNet: Send {
     ///
     /// # Errors
     /// Returns `Io` if the option cannot be set.
-    fn set_multicast_loop_v4(&self, val: bool) -> Result<()>;
+    fn set_multicast_loop(&self, val: bool) -> Result<()>;
 
     /// Returns whether multicast loopback is currently enabled.
     ///
     /// # Errors
     /// Returns `Io` if the option cannot be read.
-    fn multicast_loop_v4(&self) -> Result<bool>;
+    fn multicast_loop(&self) -> Result<bool>;
 
     /// Returns the unicast TTL.
     ///

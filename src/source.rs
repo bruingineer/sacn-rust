@@ -16,7 +16,7 @@
 
 use crate::error::errors::*;
 use crate::net::std_net::StdSourceNet;
-use crate::net::{PendingSend, SacnSourceNet, SendDestination};
+use crate::net::{IpVersion, PendingSend, SacnSourceNet, SendDestination};
 use crate::packet::*;
 
 use std::cmp::min;
@@ -252,7 +252,7 @@ impl SacnSource<StdSourceNet> {
     ///
     /// # Errors
     /// See (`with_cid_ip`)[`with_cid_ip`]
-    pub fn with_cid_v4(name: &str, cid: Uuid) -> Result<SacnSource> {
+    pub fn with_cid_v4(name: &str, cid: Uuid) -> Result<SacnSource<StdSourceNet>> {
         let ip = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT);
         SacnSource::with_cid_ip(name, cid, ip)
     }
@@ -262,7 +262,7 @@ impl SacnSource<StdSourceNet> {
     ///
     /// # Errors
     /// See (`with_cid_ip`)[`with_cid_ip`]
-    pub fn new_v6(name: &str) -> Result<SacnSource> {
+    pub fn new_v6(name: &str) -> Result<SacnSource<StdSourceNet>> {
         SacnSource::with_cid_v6(name, Uuid::new_v4())
     }
 
@@ -270,7 +270,7 @@ impl SacnSource<StdSourceNet> {
     ///
     /// # Errors
     /// See (`with_cid_ip`)[`with_cid_ip`]
-    pub fn with_cid_v6(name: &str, cid: Uuid) -> Result<SacnSource> {
+    pub fn with_cid_v6(name: &str, cid: Uuid) -> Result<SacnSource<StdSourceNet>> {
         let ip = SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT);
         SacnSource::with_cid_ip(name, cid, ip)
     }
@@ -279,7 +279,7 @@ impl SacnSource<StdSourceNet> {
     ///
     /// # Errors
     /// See (`with_cid_ip`)[`with_cid_ip`]
-    pub fn with_ip(name: &str, ip: SocketAddr) -> Result<SacnSource> {
+    pub fn with_ip(name: &str, ip: SocketAddr) -> Result<SacnSource<StdSourceNet>> {
         SacnSource::with_cid_ip(name, Uuid::new_v4(), ip)
     }
 
@@ -292,7 +292,7 @@ impl SacnSource<StdSourceNet> {
     /// `UnsupportedIpVersion`: Returned if the `SocketAddr` is not IPv4 or IPv6.
     ///
     /// `MalformedSourceName`: Returned if the given source name is longer than the maximum allowed size of `E131_SOURCE_NAME_FIELD_LENGTH`.
-    pub fn with_cid_ip(name: &str, cid: Uuid, ip: SocketAddr) -> Result<SacnSource> {
+    pub fn with_cid_ip(name: &str, cid: Uuid, ip: SocketAddr) -> Result<SacnSource<StdSourceNet>> {
         let net = StdSourceNet::new(ip)?;
         SacnSource::with_net(name, cid, net)
     }
@@ -316,7 +316,7 @@ impl<N: SacnSourceNet + 'static> SacnSource<N> {
             ));
         }
 
-        let core = SacnSourceCore::new(cid, name);
+        let core = SacnSourceCore::new(cid, name, net.ip_version());
         let internal = SacnSourceInternal::new(core, net);
         let internal_arc = Arc::new(Mutex::new(internal));
         let mut trd_src = internal_arc.clone();
@@ -348,8 +348,9 @@ impl<N: SacnSourceNet + 'static> SacnSource<N> {
     /// index 0 only, matching the behaviour of a single-socket implementation.
     ///
     /// # Errors
-    /// `UniverseNotRegistered` | `SourceCorrupt`
-    pub fn set_universe_netint(&mut self, universe: u16, netint: Ipv4Addr) -> Result<()> {
+    /// `UniverseNotRegistered`
+    /// `SourceCorrupt`
+    pub fn set_universe_netint(&mut self, universe: u16, netint: IpAddr) -> Result<()> {
         unlock_internal_mut(&mut self.internal)?.set_universe_netint(universe, netint)
     }
 
@@ -702,7 +703,15 @@ impl<N: SacnSourceNet> SacnSourceInternal<N> {
         Self { core, net }
     }
 
-    fn set_universe_netint(&mut self, universe: u16, if_addr: Ipv4Addr) -> Result<()> {
+    /// Sets the network interface on which the given universe will be sent.
+    ///
+    /// `idx` refers to a position within the interface list returned by
+    /// `net.enumerate_netints()`. By default each universe sends on interface
+    /// index 0 only, matching the behaviour of a single-socket implementation.
+    ///
+    /// # Errors
+    /// `UniverseNotRegistered`: Returned if the universe is not registered.
+    fn set_universe_netint(&mut self, universe: u16, if_addr: IpAddr) -> Result<()> {
         let os_idx = self.net.resolve_netint_idx(if_addr).ok_or_else(|| {
             SacnError::UnsupportedIpVersion(format!("No interface with address {} found", if_addr))
         })?;
@@ -851,11 +860,11 @@ impl<N: SacnSourceNet> SacnSourceInternal<N> {
     }
 
     fn set_multicast_loop_v4(&self, val: bool) -> Result<()> {
-        self.net.set_multicast_loop_v4(val)
+        self.net.set_multicast_loop(val)
     }
 
     fn multicast_loop(&self) -> Result<bool> {
-        self.net.multicast_loop_v4()
+        self.net.multicast_loop()
     }
 
     fn ttl(&self) -> Result<u32> {
@@ -966,10 +975,13 @@ struct SacnSourceCore {
 
     /// Flag that is set to True to indicate that the source is sending periodic universe discovery packets.
     is_sending_discovery: bool,
+
+    /// which IP version to use
+    ip_version: IpVersion,
 }
 
 impl SacnSourceCore {
-    pub fn new(cid: Uuid, name: &str) -> Self {
+    pub fn new(cid: Uuid, name: &str, ip_version: IpVersion) -> Self {
         SacnSourceCore {
             cid,
             name: name.to_string(),
@@ -979,6 +991,7 @@ impl SacnSourceCore {
             running: true,
             last_discovery_advert_timestamp: Instant::now(),
             is_sending_discovery: true,
+            ip_version,
         }
     }
 
@@ -1479,13 +1492,16 @@ impl SacnSourceCore {
     ) -> Result<PendingSend> {
         let bytes = build_discovery_packet(self.cid, &self.name, page, last_page, universes)?;
 
-        let multicast_addr = universe_to_ipv4_multicast_addr(E131_DISCOVERY_UNIVERSE)?
-            .as_socket()
-            .ok_or_else(|| {
-                SacnError::UnsupportedIpVersion(
-                    "Discovery multicast address could not be converted to SocketAddr".to_string(),
-                )
-            })?;
+        let addr = match self.ip_version {
+            IpVersion::V4 => universe_to_ipv4_multicast_addr(E131_DISCOVERY_UNIVERSE)?,
+            IpVersion::V6 => universe_to_ipv6_multicast_addr(E131_DISCOVERY_UNIVERSE)?,
+        };
+
+        let multicast_addr = addr.as_socket().ok_or_else(|| {
+            SacnError::UnsupportedIpVersion(
+                "Discovery multicast address could not be converted to SocketAddr".to_string(),
+            )
+        })?;
 
         Ok(PendingSend {
             destination: SendDestination::Multicast {
@@ -1502,14 +1518,17 @@ impl SacnSourceCore {
         Ok(if let Some(addr) = dst_ip {
             SendDestination::Unicast { addr: (*addr) }
         } else {
-            let s = universe_to_ipv4_multicast_addr(universe)?;
+            let s = match self.ip_version {
+                IpVersion::V4 => universe_to_ipv4_multicast_addr(universe)?,
+                IpVersion::V6 => universe_to_ipv6_multicast_addr(universe)?,
+            };
             SendDestination::Multicast {
                 netint_os_idx: self
                     .universe_states
                     .get(&universe)
                     .expect("Universe_allowed() checked before resolve_dst()")
                     .netint_idx,
-                multicast_addr: s.as_socket().expect("Socket should be in IPv4"),
+                multicast_addr: s.as_socket().expect("Socket should be in IPv4 or IPv6"),
             }
         })
     }
