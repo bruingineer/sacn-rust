@@ -86,16 +86,25 @@ impl StdSourceNet {
         // Enumerate non-loopback IPv4 interfaces.
         let sys_netints = enumerate_netints(family)?;
 
-        let default_netint_idx = sys_netints
-            .iter()
-            .find_map(|n| {
-                if n.addr == addr.ip() {
-                    Some(n.os_idx)
-                } else {
-                    None
-                }
-            })
-            .unwrap_or(0);
+        let default_netint_idx = if addr.ip().is_unspecified() {
+            0
+        } else {
+            sys_netints
+                .iter()
+                .find_map(|n| {
+                    if n.addr == addr.ip() {
+                        Some(n.os_idx)
+                    } else {
+                        None
+                    }
+                })
+                .ok_or_else(|| {
+                    SacnError::UnsupportedIpVersion(format!(
+                        "No matching interface for IP {}",
+                        addr.ip()
+                    ))
+                })?
+        };
 
         // Build one multicast send socket per interface.
         let mut mcast_sockets = HashMap::new();
@@ -123,13 +132,14 @@ impl StdSourceNet {
         // Shared unicast socket bound to the caller-supplied address.
         let ucast_socket = make_ucast_socket(addr)?;
 
-        Ok(StdSourceNet {
+        let net = StdSourceNet {
             sys_netints,
             mcast_sockets,
             ucast_socket,
             default_netint_idx,
             family,
-        })
+        };
+        Ok(net)
     }
 }
 
@@ -168,9 +178,15 @@ impl SacnSourceNet for StdSourceNet {
                 .expect("only os interface indexes are allowed")
         };
 
-        socket
-            .send_to(bytes, &dst.into())
-            .map_err(|e| std::io::Error::new(e.kind(), format!("StdSourceNet: socket({:?}) multicast send_to({:?}) failed", socket, dst)))?;
+        socket.send_to(bytes, &dst.into()).map_err(|e| {
+            std::io::Error::new(
+                e.kind(),
+                format!(
+                    "StdSourceNet: socket({:?}) multicast send_to({:?}) failed",
+                    socket, dst
+                ),
+            )
+        })?;
 
         Ok(())
     }
@@ -316,11 +332,7 @@ fn enumerate_netints(family: IpFamily) -> Result<Vec<NetIntId>> {
 
     let netints = ifaces
         .into_iter()
-        .filter(|iface| {
-            // Exclude loopback interfaces — matches ETCLabs behaviour.
-            // Loopback can be added explicitly by the user if needed.
-            iface.index.is_some()
-        })
+        .filter(|iface| iface.index.is_some())
         .filter_map(|iface| {
             let idx = iface
                 .index
@@ -450,19 +462,15 @@ pub struct StdReceiverNet {
 // ---------------------------------------------------------------------------
 
 impl StdReceiverNet {
-    /// Returns true if this `StdReceiverNet` is bound to an IPv6 address.
-    fn is_ipv6(&self) -> bool {
-        self.netint.addr.is_ipv6()
-    }
 
-    /// Sets the value of the is_multicast_enabled flag to the given value.
+    /// Sets the value of the `is_multicast_enabled` flag to the given value.
     ///
     /// If set to false then the receiver won't attempt to join any more multicast groups.
     ///
-    /// This method does not attempt to leave multicast groups already joined through previous listen_universe calls.
+    /// This method does not attempt to leave multicast groups already joined through previous `listen_universe` calls.
     ///
     /// # Arguments
-    /// val: The new value for the is_multicast_enabled flag.
+    /// val: The new value for the `is_multicast_enabled` flag.
     fn set_is_multicast_enabled(&mut self, val: bool) -> Result<()> {
         // All multicast modes are supported on Unix — no guard needed.
         self.is_multicast_enabled = val;
@@ -570,30 +578,30 @@ impl StdReceiverNet {
             IpAddr::V6(_) => IpFamily::V6,
         };
 
-        let netint;
-        if ip.ip().is_unspecified() {
-            netint = NetIntId {
+        let netint= if ip.ip().is_unspecified() {
+            NetIntId {
                 addr: ip.ip(),
                 os_idx: 0,
-            };
+            }
         } else {
-            netint = enumerate_netints(family)?
+            enumerate_netints(family)?
                 .iter()
                 .find(|n| n.addr == ip.ip())
                 .expect("receive IP should match an existing IP on an interface")
-                .to_owned();
+                .to_owned()
         };
 
         #[cfg(not(target_os = "windows"))]
         let socket = create_recv_unix_socket(ip)?;
         #[cfg(target_os = "windows")]
         let socket = create_recv_win_socket(ip)?;
-
-        Ok(StdReceiverNet {
+        let stdrecv = StdReceiverNet {
             socket,
             netint,
             is_multicast_enabled: true,
-        })
+        };
+
+        Ok(stdrecv)
     }
 }
 
@@ -717,13 +725,13 @@ fn ip_family_error(context: &str, family: i32) -> SacnError {
 /// Returns `IpVersionError` if `addr` is `AF_INET` but `interface.addr` is IPv6.
 /// Returns `UnsupportedIpVersion` for unknown address families or malformed `SockAddr` values.
 /// Returns `Io` if the underlying socket call fails.
-fn join_multicast(socket: &Socket, addr: SockAddr, interface: NetIntId) -> Result<()> {
-    match addr.family() as i32 {
+fn join_multicast(socket: &Socket, group: SockAddr, interface: NetIntId) -> Result<()> {
+    match group.family() as i32 {
         // Cast required because AF_INET is defined in libc in terms of a c_int (i32) but addr.family returns using u16.
-        AF_INET => match addr.as_socket_ipv4() {
-            Some(a) => match interface.addr {
+        AF_INET => match group.as_socket_ipv4() {
+            Some(grp) => match interface.addr {
                 IpAddr::V4(ref interface_v4) => {
-                    socket.join_multicast_v4(a.ip(), interface_v4).map_err(|e| {
+                    socket.join_multicast_v4(grp.ip(), interface_v4).map_err(|e| {
                         SacnError::Io(std::io::Error::new(e.kind(), "Failed to join IPv4 multicast"))
                     })?;
                 }
@@ -733,12 +741,12 @@ fn join_multicast(socket: &Socket, addr: SockAddr, interface: NetIntId) -> Resul
                 "IP version recognised as AF_INET but not actually usable as AF_INET so must be unknown type".to_string(),
             )),
         },
-        AF_INET6 => match addr.as_socket_ipv6() {
-            Some(a) => match interface.addr {
-                IpAddr::V6(_) =>{
-                socket.join_multicast_v6(a.ip(), interface.os_idx).map_err(|e| {
-                    SacnError::Io(std::io::Error::new(e.kind(), "Failed to join IPv6 multicast"))
-                })?;}
+        AF_INET6 => match group.as_socket_ipv6() {
+            Some(grp) => match interface.addr {
+                IpAddr::V6(_) => {
+                    socket.join_multicast_v6(grp.ip(), interface.os_idx).map_err(|e| {
+                        SacnError::Io(std::io::Error::new(e.kind(), "Failed to join IPv6 multicast"))
+                    })?;}
                 IpAddr::V4(_) => return Err(SacnError::IpVersionError()),
             }
             None => return Err(SacnError::UnsupportedIpVersion(
@@ -760,21 +768,21 @@ fn join_multicast(socket: &Socket, addr: SockAddr, interface: NetIntId) -> Resul
 /// Returns `IpVersionError` if `addr` is `AF_INET` but `interface_addr` is IPv6.
 /// Returns `UnsupportedIpVersion` for unknown address families or malformed `SockAddr` values.
 /// Returns `Io` if the underlying socket call fails.
-fn leave_multicast(socket: &Socket, addr: SockAddr, interface: NetIntId) -> Result<()> {
-    match addr.family() as i32 {
+fn leave_multicast(socket: &Socket, group: SockAddr, interface: NetIntId) -> Result<()> {
+    match group.family() as i32 {
         // Cast required because AF_INET is defined in libc in terms of a c_int (i32) but addr.family returns using u16.
-        AF_INET => match addr.as_socket_ipv4() {
-            Some(a) => {
-                leave_multicast_v4(socket, a.ip(), interface.addr)?;
+        AF_INET => match group.as_socket_ipv4() {
+            Some(grp) => {
+                leave_multicast_v4(socket, grp.ip(), interface.addr)?;
             }
             None => return Err(SacnError::UnsupportedIpVersion(
                 "IP version recognised as AF_INET but not actually usable as AF_INET so must be unknown type".to_string(),
             )),
         },
         AF_INET6 => {
-            match addr.as_socket_ipv6() {
-                Some(a) => {
-                    leave_multicast_v6(socket, a.ip(), interface.os_idx)?;
+            match group.as_socket_ipv6() {
+                Some(grp) => {
+                    leave_multicast_v6(socket, grp.ip(), interface.os_idx)?;
                 }
                 None => return Err(SacnError::UnsupportedIpVersion(
                 "IP version recognised as AF_INET6 but not actually usable as AF_INET so must be unknown type".to_string(),
@@ -812,10 +820,12 @@ fn leave_multicast_v4(socket: &Socket, group: &Ipv4Addr, interface_addr: IpAddr)
 /// On Windows this is unsupported and returns `OsOperationUnsupported`.
 /// On Unix it uses interface index 0 (OS default).
 fn leave_multicast_v6(socket: &Socket, group: &Ipv6Addr, idx: u32) -> Result<()> {
-    
-            socket.leave_multicast_v6(group, idx).map_err(|e| {
-                SacnError::Io(std::io::Error::new(e.kind(), "Failed to leave IPv6 multicast"))
-            })?;
-       
+    socket.leave_multicast_v6(group, idx).map_err(|e| {
+        SacnError::Io(std::io::Error::new(
+            e.kind(),
+            "Failed to leave IPv6 multicast",
+        ))
+    })?;
+
     Ok(())
 }

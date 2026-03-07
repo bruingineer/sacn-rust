@@ -21,6 +21,7 @@ use crate::packet::*;
 
 use std::cmp::min;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
@@ -298,7 +299,7 @@ impl SacnSource<StdSourceNet> {
     }
 }
 
-impl<N: SacnSourceNet + 'static> SacnSource<N> {
+impl<N: SacnSourceNet + 'static + Debug> SacnSource<N> {
     /// Constructs a new `SacnSource` with the given name, cid and a custom
     /// [`SacnSourceNet`] backend.
     ///
@@ -337,7 +338,6 @@ impl<N: SacnSourceNet + 'static> SacnSource<N> {
                 }
             })?),
         };
-
         Ok(src)
     }
 
@@ -648,7 +648,7 @@ impl<N: SacnSourceNet + 'static> SacnSource<N> {
     /// `SourceCorrupt`: Returned if the Mutex used to control access to the internal sender is poisoned by a thread encountering
     /// a panic while accessing causing the source to be left in a potentially inconsistent state.
     pub fn set_multicast_loop_v4(&mut self, multicast_loop: bool) -> Result<()> {
-        unlock_internal_mut(&mut self.internal)?.set_multicast_loop_v4(multicast_loop)
+        unlock_internal_mut(&mut self.internal)?.set_multicast_loop(multicast_loop)
     }
 
     /// Returns true if multicast loop is enabled, false if not.
@@ -859,7 +859,7 @@ impl<N: SacnSourceNet> SacnSourceInternal<N> {
         self.net.multicast_ttl()
     }
 
-    fn set_multicast_loop_v4(&self, val: bool) -> Result<()> {
+    fn set_multicast_loop(&self, val: bool) -> Result<()> {
         self.net.set_multicast_loop(val)
     }
 

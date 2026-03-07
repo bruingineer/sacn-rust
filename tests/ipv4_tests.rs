@@ -8,7 +8,7 @@
 //
 // This file was created as part of a University of St Andrews Computer Science BSC Senior Honours Dissertation Project.
 
-use std::io::Read;
+use std::io::{self, Read, Write};
 use std::{array, thread};
 use std::thread::sleep;
 use std::sync::mpsc;
@@ -3112,7 +3112,7 @@ fn test_discover_recv_sync_runthrough_ipv4() {
     };
 
     dmx_recv.listen_universes(&universes).unwrap(); // Assert Successful
-
+    let mut i = 0u32;
     loop {
         match dmx_recv.recv(None) {
             Err(e) => {
@@ -3144,6 +3144,8 @@ fn test_discover_recv_sync_runthrough_ipv4() {
                 }
             }
         }
+        i+=1;
+        if i.is_multiple_of(5) {print!("."); let _ = io::stdout().flush();}
     }
 
     // Finished receiving from the sender.
@@ -3694,6 +3696,7 @@ fn test_track_data_packet_seq_numbers() {
     }
 
     for s in START_SEQ_NUM .. START_SEQ_NUM + DATA_PACKETS_TO_SEND {
+        if s.is_multiple_of(5) {print!("."); let _ = io::stdout().flush();}
         let expected_seq_num: u8 = (s % 256).try_into().unwrap();
         for u in UNIVERSES.iter() {
             let expected_packet = generate_data_packet_raw(CID, *u, source_name.clone(), PRIORITY, expected_seq_num, OPTIONS, dmx_data.clone());
@@ -3764,6 +3767,7 @@ fn test_track_sync_packet_seq_numbers() {
     }
 
     for s in START_SEQ_NUM .. START_SEQ_NUM + SYNC_PACKETS_TO_SEND {
+        if s.is_multiple_of(5) {print!("."); let _ = io::stdout().flush();}
         let expected_seq_num: u8 = (s % 256).try_into().unwrap();
         for a in SYNC_ADDRESSES.iter() {
             let expected_packet = generate_sync_packet_raw(CID, *a, expected_seq_num);
