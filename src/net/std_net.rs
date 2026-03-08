@@ -383,7 +383,9 @@ fn make_mcast_socket(family: IpFamily, interface: Option<&NetIntId>) -> Result<S
     socket.set_reuse_address(true)?;
 
     if let Some(netint) = interface {
-        family.set_multicast_if(&socket, netint)?;
+        if !netint.addr.is_unspecified() {
+            family.set_multicast_if(&socket, netint)?;
+        }
     };
     println!("- socket created {:?}", socket);
     Ok(socket)
