@@ -139,12 +139,12 @@ impl StdSourceNet {
             default_netint_idx,
             family,
         };
-        if !cfg!(target_os = "windows") {
-            match family {
-                IpFamily::V6 => net.set_multicast_loop(false)?,
-                _ => {}
-            }
+        if !cfg!(target_os = "windows")
+            && let IpFamily::V6 = family
+        {
+            net.set_multicast_loop(false)?;
         }
+
         Ok(net)
     }
 }
@@ -382,7 +382,9 @@ fn make_mcast_socket(family: IpFamily, interface: Option<&NetIntId>) -> Result<S
     socket.set_reuse_port(true)?;
     socket.set_reuse_address(true)?;
 
-    if let Some(netint) = interface {
+    if let Some(netint) = interface
+        && !netint.addr.is_unspecified()
+    {
         family.set_multicast_if(&socket, netint)?;
     };
     println!("- socket created {:?}", socket);
