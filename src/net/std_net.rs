@@ -378,7 +378,7 @@ fn make_mcast_socket(family: IpFamily, interface: Option<&NetIntId>) -> Result<S
     let socket = Socket::new(family.domain(), Type::DGRAM, None)?;
 
     // Allow multiple processes / sockets to share the sACN port.
-    #[cfg(target_os = "linux")]
+    #[cfg(not(target_os = "windows"))]
     socket.set_reuse_port(true)?;
     socket.set_reuse_address(true)?;
 
@@ -402,7 +402,7 @@ fn make_ucast_socket(addr: SocketAddr) -> Result<Socket> {
     };
     let socket = Socket::new(domain, Type::DGRAM, None)?;
 
-    #[cfg(target_os = "linux")]
+    #[cfg(not(target_os = "windows"))]
     socket.set_reuse_port(true)?;
     socket.set_reuse_address(true)?;
 
