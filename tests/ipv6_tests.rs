@@ -470,7 +470,7 @@ mod sacn_ipv6_multicast_test {
         const UNIVERSES: [u16; 2] = [2, 3];
 
         let rcv_thread = thread::spawn(move || {
-            let addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), ACN_SDT_MULTICAST_PORT);
+            let addr = SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), ACN_SDT_MULTICAST_PORT);
             let mut dmx_recv = SacnReceiver::with_ip(addr, None).unwrap();
 
             dmx_recv.listen_universes(&UNIVERSES).unwrap();
@@ -478,20 +478,15 @@ mod sacn_ipv6_multicast_test {
             thread_tx.send(Ok(Vec::new())).unwrap(); // Signal that the receiver is ready to receive.
 
             thread_tx.send(dmx_recv.recv(None)).unwrap(); // Receive the sync packet, the data packets shouldn't have caused .recv to return as forced to wait for sync.
-            println!("rx: received and sent to ch");
         });
 
         let _ = rx.recv().unwrap(); // Blocks until the receiver says it is ready.
 
-        // let ip: SocketAddr = SocketAddr::new(
-        //     IpAddr::V6(TEST_NETWORK_INTERFACE_IPV6[0].parse().unwrap()),
-        //     ACN_SDT_MULTICAST_PORT + 1,
-        // );
         let ip: SocketAddr =
-            SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), ACN_SDT_MULTICAST_PORT + 1);
+            SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), ACN_SDT_MULTICAST_PORT + 1);
         let mut src = SacnSource::with_ip("Source", ip).unwrap();
         let priority = 100;
-        src.set_multicast_loop_v4(true).unwrap();
+
         src.register_universes(&UNIVERSES).unwrap();
 
         src.send(
@@ -502,7 +497,7 @@ mod sacn_ipv6_multicast_test {
             Some(UNIVERSES[0]),
         )
         .unwrap();
-        println!("tx: sent");
+
         sleep(Duration::from_millis(500)); // Small delay to allow the data packets to get through as per NSI-E1.31-2018 Appendix B.1 recommendation.
         src.send_sync_packet(UNIVERSES[0], None).unwrap();
         let sync_pkt_res: Result<Vec<DMXData>> = rx.recv().unwrap();

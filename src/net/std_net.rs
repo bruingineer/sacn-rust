@@ -139,6 +139,12 @@ impl StdSourceNet {
             default_netint_idx,
             family,
         };
+        if !cfg!(target_os = "windows") {
+            match family {
+                IpFamily::V6 => net.set_multicast_loop(false)?,
+                _ => {}
+            }
+        }
         Ok(net)
     }
 }
@@ -368,6 +374,7 @@ fn enumerate_netints(family: IpFamily) -> Result<Vec<NetIntId>> {
 /// - for IPv6, `IPV6_MULTICAST_HOPS`: left OS default; caller may override via
 ///   [`StdSourceNet::set_multicast_ttl`].
 fn make_mcast_socket(family: IpFamily, interface: Option<&NetIntId>) -> Result<Socket> {
+    println!("creating mcast {family:?} socket on interface {interface:?}");
     let socket = Socket::new(family.domain(), Type::DGRAM, None)?;
 
     // Allow multiple processes / sockets to share the sACN port.
@@ -378,7 +385,7 @@ fn make_mcast_socket(family: IpFamily, interface: Option<&NetIntId>) -> Result<S
     if let Some(netint) = interface {
         family.set_multicast_if(&socket, netint)?;
     };
-
+    println!("- socket created {:?}", socket);
     Ok(socket)
 }
 
@@ -388,6 +395,7 @@ fn make_mcast_socket(family: IpFamily, interface: Option<&NetIntId>) -> Result<S
 /// - `SO_REUSEADDR` (+ `SO_REUSEPORT` on Linux): consistent with multicast sockets.
 /// - Bound to `addr` so the OS assigns a fixed local port for unicast sends.
 fn make_ucast_socket(addr: SocketAddr) -> Result<Socket> {
+    println!("creating ucast socket for addr {addr:?}");
     let domain = match addr {
         SocketAddr::V4(_) => Domain::IPV4,
         SocketAddr::V6(_) => Domain::IPV6,
@@ -398,8 +406,8 @@ fn make_ucast_socket(addr: SocketAddr) -> Result<Socket> {
     socket.set_reuse_port(true)?;
     socket.set_reuse_address(true)?;
 
-    socket.bind(&addr.into())?;
-
+    // socket.bind(&addr.into())?;
+    println!("- socket created");
     Ok(socket)
 }
 
@@ -462,7 +470,6 @@ pub struct StdReceiverNet {
 // ---------------------------------------------------------------------------
 
 impl StdReceiverNet {
-
     /// Sets the value of the `is_multicast_enabled` flag to the given value.
     ///
     /// If set to false then the receiver won't attempt to join any more multicast groups.
@@ -578,7 +585,7 @@ impl StdReceiverNet {
             IpAddr::V6(_) => IpFamily::V6,
         };
 
-        let netint= if ip.ip().is_unspecified() {
+        let netint = if ip.ip().is_unspecified() {
             NetIntId {
                 addr: ip.ip(),
                 os_idx: 0,
@@ -595,6 +602,7 @@ impl StdReceiverNet {
         let socket = create_recv_unix_socket(ip)?;
         #[cfg(target_os = "windows")]
         let socket = create_recv_win_socket(ip)?;
+
         let stdrecv = StdReceiverNet {
             socket,
             netint,
@@ -679,6 +687,7 @@ fn create_recv_unix_socket(addr: SocketAddr) -> Result<Socket> {
     socket.set_reuse_address(true)?;
 
     socket.bind(&unspecified_sock.into())?;
+
     Ok(socket)
 }
 
@@ -785,10 +794,9 @@ fn leave_multicast(socket: &Socket, group: SockAddr, interface: NetIntId) -> Res
                     leave_multicast_v6(socket, grp.ip(), interface.os_idx)?;
                 }
                 None => return Err(SacnError::UnsupportedIpVersion(
-                "IP version recognised as AF_INET6 but not actually usable as AF_INET so must be unknown type".to_string(),
-            )),
+                    "IP version recognised as AF_INET6 but not actually usable as AF_INET so must be unknown type".to_string(),
+                )),
             }
-            
         }
         x => return Err(ip_family_error("multicast leave", x)),
     }
