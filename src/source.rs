@@ -294,6 +294,11 @@ impl SacnSource<StdSourceNet> {
     ///
     /// `MalformedSourceName`: Returned if the given source name is longer than the maximum allowed size of `E131_SOURCE_NAME_FIELD_LENGTH`.
     pub fn with_cid_ip(name: &str, cid: Uuid, ip: SocketAddr) -> Result<SacnSource<StdSourceNet>> {
+        if name.len() > E131_SOURCE_NAME_FIELD_LENGTH {
+            return Err(SacnError::MalformedSourceName(
+                "Source name provided is longer than maximum allowed".to_string(),
+            ));
+        }
         let net = StdSourceNet::new(ip)?;
         SacnSource::with_net(name, cid, net)
     }
