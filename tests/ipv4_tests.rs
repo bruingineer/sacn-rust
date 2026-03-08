@@ -2710,8 +2710,8 @@ fn test_send_recv_wrong_multicast_universe(){
 
     let thread_tx = tx.clone();
 
-    let multicast_universe = 1;
-    let actual_universe = 2;
+    let multicast_universe = 111;
+    let actual_universe = 112;
 
     let snd_thread = thread::spawn(move || {
         let ip: SocketAddr = SocketAddr::new(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap(), ACN_SDT_MULTICAST_PORT + 1);
@@ -2721,7 +2721,7 @@ fn test_send_recv_wrong_multicast_universe(){
         src.register_universes(&[multicast_universe, actual_universe]).unwrap();
 
         // The multicast address for the multicast universe as per ANSI E1.31-2018 Section 9.3.1 Table 9-10.
-        let dst_ip: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(239, 255, 0, 1)), ACN_SDT_MULTICAST_PORT);
+        let dst_ip: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(239, 255, 0, multicast_universe as u8)), ACN_SDT_MULTICAST_PORT);
 
         // Sender waits till the receiver says it is ready.
         thread_tx.send(()).unwrap();
@@ -2733,6 +2733,7 @@ fn test_send_recv_wrong_multicast_universe(){
     let mut dmx_recv = SacnReceiver::with_ip(SocketAddr::new(TEST_NETWORK_INTERFACE_IPV4[1].parse().unwrap(), ACN_SDT_MULTICAST_PORT), None).unwrap();
     dmx_recv.listen_universes(&[multicast_universe, actual_universe]).unwrap();
 
+    sleep(Duration::from_secs(5));
     // Receiver created successfully so allow the sender to progress.
     rx.recv().unwrap();
 
