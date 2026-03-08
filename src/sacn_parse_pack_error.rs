@@ -12,6 +12,22 @@
 use thiserror::Error;
 use uuid::Uuid;
 
+/// Errors that occur while parsing or packing E1.31 network packets.
+///
+/// These errors are distinct from runtime operational errors (see [`SacnError`](crate::error::errors::SacnError))
+/// and relate specifically to the structure and content of sACN packets as they
+/// are read from or written to the network.
+///
+/// All variants are wrapped by [`SacnError::SacnParsePackError`](crate::error::errors::SacnError::SacnParsePackError)
+/// when propagated through the public API, allowing callers to match on the
+/// top-level `SacnError` or drill down to a specific `ParsePacketError` variant
+/// when finer-grained handling is needed.
+///
+/// # Grouping
+///
+/// Variants prefixed with `Parse` indicate an error encountered while reading
+/// an incoming packet. Variants prefixed with `Pack` indicate an error
+/// encountered while writing an outgoing packet.
 #[derive(Debug, Error)]
 pub enum ParsePacketError {
     /// When parsing packet invalid data encountered.

@@ -328,7 +328,7 @@ pub const UNIVERSE_DISCOVERY_SOURCE_TIMEOUT: Duration = E131_NETWORK_DATA_LOSS_T
 ///
 /// # Errors
 /// `IllegalUniverse`: Returned if the given universe is outwith the allowed range of universes,
-///     see (`is_universe_in_range`)[`fn.is_universe_in_range.packet`].
+///     see [`is_universe_in_range`].
 pub fn universe_to_ipv4_multicast_addr(universe: u16) -> Result<SockAddr> {
     is_universe_in_range(universe)?;
 

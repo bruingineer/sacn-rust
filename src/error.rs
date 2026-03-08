@@ -20,7 +20,28 @@
 //! ParsePack related errors come within their own family wrapped inside this error to allow easy matching (can just match for SacnParsePackError rather than a specific).
 //!
 //! SacnParsePackError(sacn_parse_pack_error::Error, sacn_parse_pack_error::ErrorKind)
+//!
 
+/// Runtime errors for the sACN crate.
+///
+/// This module provides [`SacnError`], the single error type returned by all
+/// fallible public APIs in this crate, and the [`Result`] type alias that uses it.
+///
+/// # Error categories
+///
+/// | Variant group | Source |
+/// |---|---|
+/// | [`Io`](SacnError::Io) | Wrapped [`std::io::Error`] from OS socket operations |
+/// | [`Str`](SacnError::Str) | Wrapped [`std::str::Utf8Error`] from string parsing |
+/// | [`Uuid`](SacnError::Uuid) | Wrapped [`uuid::Error`] from CID parsing |
+/// | [`SacnParsePackError`](SacnError::SacnParsePackError) | Packet parse/pack failures — see [`crate::sacn_parse_pack_error`] |
+/// | All others | sACN protocol-level conditions (invalid universe, sequence errors, etc.) |
+///
+/// # Matching
+///
+/// To handle parse/pack errors without matching every individual variant,
+/// match on [`SacnError::SacnParsePackError`] and inspect the inner
+/// [`ParsePacketError`] only if further discrimination is needed.
 pub mod errors {
     use crate::sacn_parse_pack_error::ParsePacketError;
     use thiserror::Error;
@@ -32,15 +53,31 @@ pub mod errors {
     /// can produce an error.
     pub type Result<T> = std::result::Result<T, SacnError>;
 
+    /// The error type for all fallible sACN operations.
+    ///
+    /// Returned by every method in this crate that can fail. Standard library and
+    /// third-party errors are wrapped via `#[from]` conversions so they can be
+    /// used with the `?` operator without manual mapping.
+    ///
+    /// Parse and pack errors are grouped under [`SacnParsePackError`](SacnError::SacnParsePackError)
+    /// rather than exposed as individual variants. This allows callers to match on
+    /// `SacnError::SacnParsePackError` as a category without needing to handle
+    /// every packet-level error individually unless finer-grained handling is required.
+    ///
+    /// # Usage
+    ///
+    /// The [`Result`] type alias in this module pins the error type to `SacnError`,
+    /// so return types throughout the crate are written as `Result<T>` rather than
+    /// `Result<T, SacnError>`.
     #[derive(Debug, Error)]
     pub enum SacnError {
-        // Allow IO errors to be used with the error system.
+        /// Allow IO errors to be used with the error system.
         #[error("Io error occurred: {0}")]
         Io(#[from] std::io::Error),
-        // Allow standard string library errors to be used with the error system.
+        /// Allow standard string library errors to be used with the error system.
         #[error("String error occurred: {0}")]
         Str(#[from] std::str::Utf8Error),
-        // Allow UUID library to be used with error system.
+        /// Allow UUID library to be used with error system.
         #[error("Uuid error occurred: {0}")]
         Uuid(#[from] uuid::Error),
 
@@ -53,7 +90,7 @@ pub mod errors {
         #[error("The given buffer fits {0} bytes, but {1} bytes were read.")]
         TooManyBytesRead(usize, usize),
 
-        // All parse/pack errors live within the same SacnError group as described in sacn_parse_packet_error.
+        /// All parse/pack errors live within the same `SacnError` group as described in `sacn_parse_packet_error`.
         #[error("SacnParsePack error occurred: {0}")]
         SacnParsePackError(#[from] ParsePacketError),
 
