@@ -297,6 +297,22 @@ impl SacnSource<StdSourceNet> {
         let net = StdSourceNet::new(ip)?;
         SacnSource::with_net(name, cid, net)
     }
+
+    /// Sets the network interface on which the given universe will be sent.
+    ///
+    /// `idx` refers to a position within the interface list returned by
+    /// `net.enumerate_netints()`. By default each universe sends on interface
+    /// index 0 only, matching the behaviour of a single-socket implementation.
+    ///
+    /// # Errors
+    /// `UniverseNotRegistered`: Returned if the universe is not registered.
+    pub fn set_universe_netint_by_ip(&mut self, universe: u16, if_addr: IpAddr) -> Result<()> {
+        let mut internal = unlock_internal_mut(&mut self.internal)?;
+        let os_idx = internal.net.resolve_netint_idx(if_addr).ok_or_else(|| {
+            SacnError::UnsupportedIpVersion(format!("No interface with address {} found", if_addr))
+        })?;
+        internal.core.set_universe_netint(universe, os_idx)
+    }
 }
 
 impl<N: SacnSourceNet + 'static + Debug> SacnSource<N> {
@@ -343,37 +359,13 @@ impl<N: SacnSourceNet + 'static + Debug> SacnSource<N> {
 
     /// Sets the network interface on which the given universe will be sent.
     ///
-    /// `idx` refers to a position within the interface list returned by
-    /// `net.enumerate_netints()`. By default each universe sends on interface
-    /// index 0 only, matching the behaviour of a single-socket implementation.
+    /// `idx` refers to the OS index.
     ///
     /// # Errors
     /// `UniverseNotRegistered`
     /// `SourceCorrupt`
-    pub fn set_universe_netint(&mut self, universe: u16, netint: IpAddr) -> Result<()> {
-        unlock_internal_mut(&mut self.internal)?.set_universe_netint(universe, netint)
-    }
-
-    /// Returns the number of network interfaces available to this source.
-    ///
-    /// # Errors
-    /// `SourceCorrupt`
-    pub fn netint_count(&self) -> Result<usize> {
-        Ok(unlock_internal(&self.internal)?
-            .net
-            .enumerate_netints()
-            .len())
-    }
-
-    /// Returns the network interfaces available to this source.
-    ///
-    /// # Errors  
-    /// `SourceCorrupt`
-    pub fn netints(&self) -> Result<Vec<crate::net::NetIntId>> {
-        Ok(unlock_internal(&self.internal)?
-            .net
-            .enumerate_netints()
-            .to_vec())
+    pub fn set_universe_netint(&mut self, universe: u16, os_idx: u32) -> Result<()> {
+        unlock_internal_mut(&mut self.internal)?.set_universe_netint(universe, os_idx)
     }
 
     /// Registers the given universes on this source in addition to already registered universes.
@@ -705,16 +697,11 @@ impl<N: SacnSourceNet> SacnSourceInternal<N> {
 
     /// Sets the network interface on which the given universe will be sent.
     ///
-    /// `idx` refers to a position within the interface list returned by
-    /// `net.enumerate_netints()`. By default each universe sends on interface
-    /// index 0 only, matching the behaviour of a single-socket implementation.
+    /// `idx` refers to the OS index.
     ///
     /// # Errors
     /// `UniverseNotRegistered`: Returned if the universe is not registered.
-    fn set_universe_netint(&mut self, universe: u16, if_addr: IpAddr) -> Result<()> {
-        let os_idx = self.net.resolve_netint_idx(if_addr).ok_or_else(|| {
-            SacnError::UnsupportedIpVersion(format!("No interface with address {} found", if_addr))
-        })?;
+    fn set_universe_netint(&mut self, universe: u16, os_idx: u32) -> Result<()> {
         self.core.set_universe_netint(universe, os_idx)
     }
 

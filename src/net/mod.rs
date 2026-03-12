@@ -68,10 +68,10 @@ pub enum IpVersion {
 /// Describes where a [`PendingSend`] should be delivered.
 #[derive(Debug, Clone)]
 pub enum SendDestination {
-    /// Send to an IP multicast group via the socket bound to the interface at
-    /// the given index within [`SacnSourceNet::enumerate_netints`].
+    /// Send to an IP multicast group via the socket bound to the interface with
+    /// the given OS index.
     Multicast {
-        /// Index into the netint list returned by [`SacnSourceNet::enumerate_netints`].
+        /// The OS interface index identifying which socket to send from.
         netint_os_idx: u32,
         /// The multicast group address and port to send to.
         multicast_addr: SocketAddr,
@@ -118,10 +118,10 @@ pub struct PendingSend {
 ///
 /// # Required methods
 ///
-/// Only [`enumerate_netints`], [`send_mcast`], [`send_ucast`], and the socket
-/// option accessors are required. [`execute_batch`] has a correct default
-/// implementation that calls the required methods in a loop; override it in
-/// backends that can do better (e.g. `sendmmsg`).
+/// Only [`send_mcast`], [`send_ucast`], and the socket option accessors are
+/// required. [`execute_batch`] has a correct default implementation that calls
+/// the required methods in a loop; override it in backends that can do better
+/// (e.g. `sendmmsg`).
 ///
 /// # Thread safety
 ///
@@ -131,32 +131,15 @@ pub struct PendingSend {
 /// path.
 pub trait SacnSourceNet: Send {
     // -----------------------------------------------------------------------
-    // Interface enumeration
+    // Interface lookup
     // -----------------------------------------------------------------------
 
-    /// Returns the list of network interfaces available for multicast sending.
-    ///
-    /// The indices used in [`SendDestination::Multicast::netint_idx`] refer to
-    /// positions within this slice. The slice must remain stable for the
-    /// lifetime of the backend (i.e. do not re-enumerate dynamically between
-    /// calls without also updating all universe netint index lists).
-    fn enumerate_netints(&self) -> &[NetIntId];
-
-    /// Returns the interface index that should be used as the default for
+    /// Returns the OS interface index that should be used as the default for
     /// newly registered universes.
     ///
-    /// For [`StdNet`] this is derived from the local address passed at
+    /// For [`StdSourceNet`] this is derived from the local address passed at
     /// construction. For custom backends, return 0 if there is no preference.
     fn default_netint_idx(&self) -> u32;
-
-    /// Resolves a local IPv4 address to the OS interface index used for multicast sends.
-    ///
-    /// Returns `None` if no interface with that address is known to this backend.
-    fn resolve_netint_idx(&self, addr: IpAddr) -> Option<u32> {
-        self.enumerate_netints()
-            .iter()
-            .find_map(|n| if n.addr == addr { Some(n.os_idx) } else { None })
-    }
 
     fn ip_version(&self) -> IpVersion;
 
@@ -165,7 +148,7 @@ pub trait SacnSourceNet: Send {
     // -----------------------------------------------------------------------
 
     /// Send `bytes` to the multicast group at `dst` using the socket
-    /// associated with the interface at `idx` in [`enumerate_netints`].
+    /// associated with the interface identified by OS index `idx`.
     ///
     /// # Errors
     /// Returns `Io` if the send fails.

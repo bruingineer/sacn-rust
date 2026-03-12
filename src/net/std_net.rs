@@ -41,22 +41,23 @@ use crate::packet::{universe_to_ipv4_multicast_addr, universe_to_ipv6_multicast_
 ///
 /// | Socket | Count | Purpose |
 /// |---|---|---|
-/// | `mcast_sockets[i]` | 1 per netint | Multicast sends with `IP_MULTICAST_IF = netint[i].addr` |
+/// | `mcast_sockets[os_idx]` | 1 per netint | Multicast sends with `IP_MULTICAST_IF = netint.addr` |
 /// | `ucast_socket` | 1 shared | Unicast sends |
 ///
 /// # Fallback behaviour
 ///
-/// If [`get_if_addrs`] returns no non-loopback IPv4 interfaces, `StdSourceNet`
-/// creates a single unbound socket used for all multicast sends. This keeps
-/// the library working on minimal hosts (CI, loopback-only containers) at the
-/// cost of losing explicit interface selection.
+/// If [`get_if_addrs`] returns no non-loopback interfaces for the chosen family,
+/// `StdSourceNet` creates a single unbound socket at index 0 used for all multicast
+/// sends. This keeps the library working on minimal hosts (CI, loopback-only
+/// containers) at the cost of losing explicit interface selection.
 #[derive(Debug)]
 pub struct StdSourceNet {
-    /// Non-loopback IPv4 interfaces available at construction time.
-    sys_netints: Vec<NetIntId>,
+    /// Maps each known interface's IP address to its OS interface index.
+    /// Used by [`resolve_netint_idx`] without exposing a public interface list.
+    netint_index: HashMap<IpAddr, u32>,
 
-    /// One multicast send socket per entry in `sys_netints`.
-    /// If `sys_netints` is empty this contains exactly one fallback socket.
+    /// One multicast send socket per network interface, keyed by OS interface index.
+    /// Always contains at least one entry: a fallback socket at index 0.
     mcast_sockets: HashMap<u32, Socket>,
 
     /// Shared unicast send socket.
@@ -64,7 +65,7 @@ pub struct StdSourceNet {
 
     default_netint_idx: u32,
 
-    family: IpFamily,
+    family: IpVersion,
 }
 
 impl StdSourceNet {
@@ -78,18 +79,18 @@ impl StdSourceNet {
     /// `Io`: Returned if any socket cannot be created, configured, or bound.
     ///
     /// `UnsupportedIpVersion`: Returned if `addr` is not IPv4.
-    pub fn new(addr: SocketAddr) -> Result<Self> {
+    pub(crate) fn new(addr: SocketAddr) -> Result<Self> {
         let family = match addr.ip() {
-            IpAddr::V4(_) => IpFamily::V4,
-            IpAddr::V6(_) => IpFamily::V6,
+            IpAddr::V4(_) => IpVersion::V4,
+            IpAddr::V6(_) => IpVersion::V6,
         };
-        // Enumerate non-loopback IPv4 interfaces.
-        let sys_netints = enumerate_netints(family)?;
+        // Enumerate non-loopback interfaces for the chosen IP family.
+        let netints = enumerate_netints(family)?;
 
         let default_netint_idx = if addr.ip().is_unspecified() {
             0
         } else {
-            sys_netints
+            netints
                 .iter()
                 .find_map(|n| {
                     if n.addr == addr.ip() {
@@ -112,8 +113,8 @@ impl StdSourceNet {
         // Fallback: single unbound socket. Multicast egress interface will
         // be chosen by the OS routing table — correct for single-NIC hosts.
         match family {
-            IpFamily::V4 => mcast_sockets.insert(0, make_mcast_socket(family, None)?),
-            IpFamily::V6 => mcast_sockets.insert(
+            IpVersion::V4 => mcast_sockets.insert(0, make_mcast_socket(family, None)?),
+            IpVersion::V6 => mcast_sockets.insert(
                 0,
                 make_mcast_socket(
                     family,
@@ -125,27 +126,35 @@ impl StdSourceNet {
             ),
         };
 
-        for sys_int in &sys_netints {
-            mcast_sockets.insert(sys_int.os_idx, make_mcast_socket(family, Some(sys_int))?);
+        for netint in &netints {
+            mcast_sockets.insert(netint.os_idx, make_mcast_socket(family, Some(netint))?);
         }
+
+        // Build addr→index lookup map from the enumerated interfaces.
+        let netint_index: HashMap<IpAddr, u32> =
+            netints.iter().map(|n| (n.addr, n.os_idx)).collect();
 
         // Shared unicast socket bound to the caller-supplied address.
         let ucast_socket = make_ucast_socket(addr)?;
 
         let net = StdSourceNet {
-            sys_netints,
+            netint_index,
             mcast_sockets,
             ucast_socket,
             default_netint_idx,
             family,
         };
         if !cfg!(target_os = "windows")
-            && let IpFamily::V6 = family
+            && let IpVersion::V6 = family
         {
             net.set_multicast_loop(false)?;
         }
 
         Ok(net)
+    }
+
+    pub(crate) fn resolve_netint_idx(&self, addr: IpAddr) -> Option<u32> {
+        self.netint_index.get(&addr).copied()
     }
 }
 
@@ -154,35 +163,24 @@ impl StdSourceNet {
 // ---------------------------------------------------------------------------
 
 impl SacnSourceNet for StdSourceNet {
-    fn enumerate_netints(&self) -> &[NetIntId] {
-        &self.sys_netints
-    }
-
     fn default_netint_idx(&self) -> u32 {
         self.default_netint_idx
     }
 
     fn ip_version(&self) -> IpVersion {
-        match self.family {
-            IpFamily::V4 => IpVersion::V4,
-            IpFamily::V6 => IpVersion::V6,
-        }
+        self.family
     }
 
     fn send_mcast(&self, idx: u32, dst: SocketAddr, bytes: &[u8]) -> Result<()> {
-        // When sys_netints is empty we have exactly one fallback socket at index 0.
-        // Callers should pass idx = 0 in that case (SourceUniverseState default).
-        let socket = if self.sys_netints.is_empty() {
-            &self
-                .mcast_sockets
-                .get(&0)
-                .expect("mcast_sockets always has 0 entry")
-        } else {
-            &self
-                .mcast_sockets
-                .get(&idx)
-                .expect("only os interface indexes are allowed")
-        };
+        // Look up the socket for the requested interface index.
+        // Fall back to the unbound socket at index 0 if the index isn't found —
+        // this handles both the minimal-host case (no real interfaces enumerated)
+        // and callers that pass idx = 0 as the default.
+        let socket = self
+            .mcast_sockets
+            .get(&idx)
+            .or_else(|| self.mcast_sockets.get(&0))
+            .expect("mcast_sockets always has at least one entry at index 0");
 
         socket.send_to(bytes, &dst.into()).map_err(|e| {
             std::io::Error::new(
@@ -250,17 +248,11 @@ impl SacnSourceNet for StdSourceNet {
 /// Encapsulates the per-family socket operations that differ between IPv4 and IPv6.
 /// Everything else (`send_to`, `bind`, `SO_REUSEADDR`, `SO_REUSEPORT`) is identical
 /// and lives directly in the calling code.
-#[derive(Debug, Clone, Copy)]
-enum IpFamily {
-    V4,
-    V6,
-}
-
-impl IpFamily {
+impl IpVersion {
     fn domain(&self) -> Domain {
         match self {
-            IpFamily::V4 => Domain::IPV4,
-            IpFamily::V6 => Domain::IPV6,
+            IpVersion::V4 => Domain::IPV4,
+            IpVersion::V6 => Domain::IPV6,
         }
     }
 
@@ -268,53 +260,53 @@ impl IpFamily {
     /// V4 uses the interface address; V6 uses the OS interface index.
     fn set_multicast_if(&self, socket: &Socket, netint: &NetIntId) -> Result<()> {
         match self {
-            IpFamily::V4 => match netint.addr {
+            IpVersion::V4 => match netint.addr {
                 IpAddr::V4(ref v4) => Ok(socket.set_multicast_if_v4(v4)?),
                 IpAddr::V6(_) => Err(SacnError::IpVersionError()),
             },
-            IpFamily::V6 => Ok(socket.set_multicast_if_v6(netint.os_idx)?),
+            IpVersion::V6 => Ok(socket.set_multicast_if_v6(netint.os_idx)?),
         }
     }
 
     fn set_multicast_loop(&self, socket: &Socket, val: bool) -> Result<()> {
         match self {
-            IpFamily::V4 => Ok(socket.set_multicast_loop_v4(val)?),
-            IpFamily::V6 => Ok(socket.set_multicast_loop_v6(val)?),
+            IpVersion::V4 => Ok(socket.set_multicast_loop_v4(val)?),
+            IpVersion::V6 => Ok(socket.set_multicast_loop_v6(val)?),
         }
     }
 
     fn multicast_loop(&self, socket: &Socket) -> Result<bool> {
         match self {
-            IpFamily::V4 => Ok(socket.multicast_loop_v4()?),
-            IpFamily::V6 => Ok(socket.multicast_loop_v6()?),
+            IpVersion::V4 => Ok(socket.multicast_loop_v4()?),
+            IpVersion::V6 => Ok(socket.multicast_loop_v6()?),
         }
     }
 
     fn set_multicast_ttl(&self, socket: &Socket, ttl: u32) -> Result<()> {
         match self {
-            IpFamily::V4 => Ok(socket.set_multicast_ttl_v4(ttl)?),
-            IpFamily::V6 => Ok(socket.set_multicast_hops_v6(ttl)?),
+            IpVersion::V4 => Ok(socket.set_multicast_ttl_v4(ttl)?),
+            IpVersion::V6 => Ok(socket.set_multicast_hops_v6(ttl)?),
         }
     }
 
     fn multicast_ttl(&self, socket: &Socket) -> Result<u32> {
         match self {
-            IpFamily::V4 => Ok(socket.multicast_ttl_v4()?),
-            IpFamily::V6 => Ok(socket.multicast_hops_v6()?),
+            IpVersion::V4 => Ok(socket.multicast_ttl_v4()?),
+            IpVersion::V6 => Ok(socket.multicast_hops_v6()?),
         }
     }
 
     fn set_unicast_ttl(&self, socket: &Socket, ttl: u32) -> Result<()> {
         match self {
-            IpFamily::V4 => Ok(socket.set_ttl_v4(ttl)?),
-            IpFamily::V6 => Ok(socket.set_unicast_hops_v6(ttl)?),
+            IpVersion::V4 => Ok(socket.set_ttl_v4(ttl)?),
+            IpVersion::V6 => Ok(socket.set_unicast_hops_v6(ttl)?),
         }
     }
 
     fn unicast_ttl(&self, socket: &Socket) -> Result<u32> {
         match self {
-            IpFamily::V4 => Ok(socket.ttl_v4()?),
-            IpFamily::V6 => Ok(socket.unicast_hops_v6()?),
+            IpVersion::V4 => Ok(socket.ttl_v4()?),
+            IpVersion::V6 => Ok(socket.unicast_hops_v6()?),
         }
     }
 }
@@ -328,7 +320,7 @@ impl IpFamily {
 ///
 /// Returns an empty `Vec` if no such interfaces exist rather than an error,
 /// so the fallback socket path in [`StdSourceNet::new`] can handle minimal hosts.
-fn enumerate_netints(family: IpFamily) -> Result<Vec<NetIntId>> {
+fn enumerate_netints(family: IpVersion) -> Result<Vec<NetIntId>> {
     let ifaces = get_if_addrs().map_err(|e| {
         std::io::Error::new(
             e.kind(),
@@ -344,11 +336,11 @@ fn enumerate_netints(family: IpFamily) -> Result<Vec<NetIntId>> {
                 .index
                 .expect("Filtered interfaces with indices in previous filter.");
             match family {
-                IpFamily::V4 => iface.addr.ip().is_ipv4().then_some(NetIntId {
+                IpVersion::V4 => iface.addr.ip().is_ipv4().then_some(NetIntId {
                     addr: iface.addr.ip(),
                     os_idx: idx,
                 }),
-                IpFamily::V6 => iface.addr.ip().is_ipv6().then_some(NetIntId {
+                IpVersion::V6 => iface.addr.ip().is_ipv6().then_some(NetIntId {
                     addr: iface.addr.ip(),
                     os_idx: idx,
                 }),
@@ -357,6 +349,16 @@ fn enumerate_netints(family: IpFamily) -> Result<Vec<NetIntId>> {
         .collect();
 
     Ok(netints)
+}
+
+/// Finds the single [`NetIntId`] whose address matches `addr` in the given IP family.
+///
+/// Returns `Ok(None)` if no interface has that address (rather than an error),
+/// so callers can choose how to handle the missing-interface case.
+fn find_netint(family: IpVersion, addr: IpAddr) -> Result<Option<NetIntId>> {
+    Ok(enumerate_netints(family)?
+        .into_iter()
+        .find(|n| n.addr == addr))
 }
 
 /// Creates and configures a multicast send socket.
@@ -373,7 +375,7 @@ fn enumerate_netints(family: IpFamily) -> Result<Vec<NetIntId>> {
 ///   [`StdSourceNet::set_multicast_ttl`].
 /// - for IPv6, `IPV6_MULTICAST_HOPS`: left OS default; caller may override via
 ///   [`StdSourceNet::set_multicast_ttl`].
-fn make_mcast_socket(family: IpFamily, interface: Option<&NetIntId>) -> Result<Socket> {
+fn make_mcast_socket(family: IpVersion, interface: Option<&NetIntId>) -> Result<Socket> {
     println!("creating mcast {family:?} socket on interface {interface:?}");
     let socket = Socket::new(family.domain(), Type::DGRAM, None)?;
 
@@ -408,7 +410,7 @@ fn make_ucast_socket(addr: SocketAddr) -> Result<Socket> {
     socket.set_reuse_port(true)?;
     socket.set_reuse_address(true)?;
 
-    // socket.bind(&addr.into())?;
+    // socket.bind(&addr.into())?; // TODO: check this bind on windows, linux, macos
     println!("- socket created");
     Ok(socket)
 }
@@ -571,7 +573,6 @@ impl StdReceiverNet {
 
 /// Socket construction and multicast-flag guarding differ on Windows.
 /// Tested with Windows 10 1909.
-// #[cfg(target_os = "windows")]
 impl StdReceiverNet {
     /// Creates a new receiver on the interface specified by the given address.
     ///
@@ -583,8 +584,8 @@ impl StdReceiverNet {
     /// For more details see `socket2::Socket::new()`.
     pub fn new(ip: SocketAddr) -> Result<StdReceiverNet> {
         let family = match ip.ip() {
-            IpAddr::V4(_) => IpFamily::V4,
-            IpAddr::V6(_) => IpFamily::V6,
+            IpAddr::V4(_) => IpVersion::V4,
+            IpAddr::V6(_) => IpVersion::V6,
         };
 
         let netint = if ip.ip().is_unspecified() {
@@ -593,11 +594,8 @@ impl StdReceiverNet {
                 os_idx: 0,
             }
         } else {
-            enumerate_netints(family)?
-                .iter()
-                .find(|n| n.addr == ip.ip())
+            find_netint(family, ip.ip())?
                 .expect("receive IP should match an existing IP on an interface")
-                .to_owned()
         };
 
         #[cfg(not(target_os = "windows"))]
