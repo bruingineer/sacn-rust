@@ -3686,6 +3686,8 @@ fn test_track_data_packet_seq_numbers() {
     recv_socket.set_multicast_loop_v4(true).unwrap();
     let addr: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT);
     recv_socket.bind(&addr.into()).unwrap();
+    recv_socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+    sleep(Duration::from_secs(1));
 
     // Join the multicast groups for each of the universes.
     for u in UNIVERSES.iter() {
@@ -3702,11 +3704,12 @@ fn test_track_data_packet_seq_numbers() {
         for u in UNIVERSES.iter() {
             let expected_packet = generate_data_packet_raw(CID, *u, source_name.clone(), PRIORITY, expected_seq_num, OPTIONS, dmx_data.clone());
             source.send(&[*u], &dmx_data, Some(PRIORITY), None, None).unwrap();
-
+            sleep(Duration::from_millis(10));
             let mut recv_buf = [0; 1024];
             let amt = recv_socket.read(&mut recv_buf).unwrap();
 
             assert_eq!(&recv_buf[0..amt], &expected_packet[..]);
+            sleep(Duration::from_millis(3));
         }
     }
 }
