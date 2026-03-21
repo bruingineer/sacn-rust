@@ -15,10 +15,6 @@
 //!
 //! Installation instructions are detailed within the README file.
 //!
-//!
-//!
-//! This file was modified as part of a University of St Andrews Computer Science BSC Senior Honours Dissertation Project.
-//!
 //! # Examples
 //!
 //! Creating an sACN receiver and receiving data. This automatically handles receiving synchronised data at the right time with the array of received data
@@ -203,3 +199,5 @@ pub mod source;
 
 /// The receive module handles the receiving of sACN on the network.
 pub mod receive;
+
+pub mod net;

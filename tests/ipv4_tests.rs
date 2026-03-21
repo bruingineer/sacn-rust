@@ -8,7 +8,7 @@
 //
 // This file was created as part of a University of St Andrews Computer Science BSC Senior Honours Dissertation Project.
 
-use std::io::Read;
+use std::io::{self, Read, Write};
 use std::{array, thread};
 use std::thread::sleep;
 use std::sync::mpsc;
@@ -898,10 +898,12 @@ fn test_send_recv_across_universe_multicast_ipv4(){
 
     let thread_tx = tx.clone();
 
-    const UNIVERSES: [u16; 2] = [2, 3];
+    const U2: u16 = 102;
+    const U3: u16 = 103;
+    const UNIVERSES: [u16; 2] = [U2, U3];
 
     let rcv_thread = thread::spawn(move || {
-        let mut dmx_recv = SacnReceiver::with_ip(SocketAddr::new(Ipv4Addr::new(0,0,0,0).into(), ACN_SDT_MULTICAST_PORT), None).unwrap();
+        let mut dmx_recv = SacnReceiver::with_ip(SocketAddr::new(TEST_NETWORK_INTERFACE_IPV4[1].parse().unwrap(), ACN_SDT_MULTICAST_PORT), None).unwrap();
 
         dmx_recv.listen_universes(&UNIVERSES).unwrap();
 
@@ -912,7 +914,7 @@ fn test_send_recv_across_universe_multicast_ipv4(){
 
     let _ = rx.recv().unwrap(); // Blocks until the receiver says it is ready.
 
-    let ip: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), ACN_SDT_MULTICAST_PORT + 1);
+    let ip: SocketAddr = SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap()), ACN_SDT_MULTICAST_PORT + 1);
     let mut src = SacnSource::with_ip("Source", ip).unwrap();
 
     let priority = 100;
@@ -935,15 +937,15 @@ fn test_send_recv_across_universe_multicast_ipv4(){
 
     assert_eq!(received_data.len(), 2); // Check 2 universes received as expected.
 
-    assert_eq!(received_data[0].universe, 2); // Check that the universe received is as expected.
+    assert_eq!(received_data[0].universe, U2); // Check that the universe received is as expected.
 
-    assert_eq!(received_data[0].sync_uni, 2); // Check that the sync universe is as expected.
+    assert_eq!(received_data[0].sync_uni, U2); // Check that the sync universe is as expected.
 
     assert_eq!(received_data[0].values, TEST_DATA_MULTIPLE_UNIVERSE[..UNIVERSE_CHANNEL_CAPACITY].to_vec(), "Universe 1 received payload values don't match sent!");
 
-    assert_eq!(received_data[1].universe, 3); // Check that the universe received is as expected.
+    assert_eq!(received_data[1].universe, U3); // Check that the universe received is as expected.
 
-    assert_eq!(received_data[1].sync_uni, 2); // Check that the sync universe is as expected.
+    assert_eq!(received_data[1].sync_uni, U2); // Check that the sync universe is as expected.
 
     assert_eq!(received_data[1].values, TEST_DATA_MULTIPLE_UNIVERSE[UNIVERSE_CHANNEL_CAPACITY..].to_vec(), "Universe 2 received payload values don't match sent!");
 }
@@ -2203,7 +2205,7 @@ fn test_receiver_source_limit_2() {
         let data = [1, 2, 3];
 
         snd_threads.push(thread::spawn(move || {
-            let ip: SocketAddr = SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap()), ACN_SDT_MULTICAST_PORT + 1 + (i as u16));
+            let ip: SocketAddr = SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[i].parse().unwrap()), ACN_SDT_MULTICAST_PORT + 1 + (i as u16));
             let mut src = SacnSource::with_ip(&format!("Source {}", i), ip).unwrap();
 
             let priority = 100;
@@ -2221,7 +2223,7 @@ fn test_receiver_source_limit_2() {
         }));
     }
 
-    let mut dmx_recv = SacnReceiver::with_ip(SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap()), ACN_SDT_MULTICAST_PORT), SRC_LIMIT).unwrap();
+    let mut dmx_recv = SacnReceiver::with_ip(SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[2].parse().unwrap()), ACN_SDT_MULTICAST_PORT), SRC_LIMIT).unwrap();
 
     // Receivers listen to all universes
     for i in (BASE_UNIVERSE as u16) .. ((SND_THREADS as u16) + (BASE_UNIVERSE as u16)) {
@@ -2708,8 +2710,8 @@ fn test_send_recv_wrong_multicast_universe(){
 
     let thread_tx = tx.clone();
 
-    let multicast_universe = 1;
-    let actual_universe = 2;
+    let multicast_universe = 111;
+    let actual_universe = 112;
 
     let snd_thread = thread::spawn(move || {
         let ip: SocketAddr = SocketAddr::new(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap(), ACN_SDT_MULTICAST_PORT + 1);
@@ -2719,7 +2721,7 @@ fn test_send_recv_wrong_multicast_universe(){
         src.register_universes(&[multicast_universe, actual_universe]).unwrap();
 
         // The multicast address for the multicast universe as per ANSI E1.31-2018 Section 9.3.1 Table 9-10.
-        let dst_ip: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(239, 255, 0, 1)), ACN_SDT_MULTICAST_PORT);
+        let dst_ip: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(239, 255, 0, multicast_universe as u8)), ACN_SDT_MULTICAST_PORT);
 
         // Sender waits till the receiver says it is ready.
         thread_tx.send(()).unwrap();
@@ -2731,6 +2733,7 @@ fn test_send_recv_wrong_multicast_universe(){
     let mut dmx_recv = SacnReceiver::with_ip(SocketAddr::new(TEST_NETWORK_INTERFACE_IPV4[1].parse().unwrap(), ACN_SDT_MULTICAST_PORT), None).unwrap();
     dmx_recv.listen_universes(&[multicast_universe, actual_universe]).unwrap();
 
+    sleep(Duration::from_secs(5));
     // Receiver created successfully so allow the sender to progress.
     rx.recv().unwrap();
 
@@ -2831,7 +2834,7 @@ fn test_send_sync_timeout(){
     const TIMEOUT: Option<Duration> = Some(Duration::from_secs(5));
 
     // Need to wait slightly longer than the E131_NETWORK_DATA_LOSS_TIMEOUT so that the synchronised data packet should timeout.
-    let sender_wait_period: Duration = E131_NETWORK_DATA_LOSS_TIMEOUT + Duration::from_millis(100);
+    let sender_wait_period: Duration = E131_NETWORK_DATA_LOSS_TIMEOUT + Duration::from_millis(300);
 
     let (tx, rx): (SyncSender<()>, Receiver<()>) = mpsc::sync_channel(0);
 
@@ -3110,7 +3113,7 @@ fn test_discover_recv_sync_runthrough_ipv4() {
     };
 
     dmx_recv.listen_universes(&universes).unwrap(); // Assert Successful
-
+    let mut i = 0u32;
     loop {
         match dmx_recv.recv(None) {
             Err(e) => {
@@ -3142,6 +3145,8 @@ fn test_discover_recv_sync_runthrough_ipv4() {
                 }
             }
         }
+        i+=1;
+        if i.is_multiple_of(5) {print!("."); let _ = io::stdout().flush();}
     }
 
     // Finished receiving from the sender.
@@ -3310,7 +3315,7 @@ fn test_data_packet_transmit_format() {
 
     let packet = generate_data_packet_raw(CID, universe, source_name.clone(), PRIORITY, sequence, OPTIONS, dmx_data.clone());
 
-    let ip: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), ACN_SDT_MULTICAST_PORT + 1);
+    let ip: SocketAddr = SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap()), ACN_SDT_MULTICAST_PORT + 1);
     let mut source = SacnSource::with_cid_ip(&source_name.clone(), Uuid::from_bytes(CID), ip).unwrap();
 
     source.set_preview_mode(false).unwrap();
@@ -3321,6 +3326,7 @@ fn test_data_packet_transmit_format() {
     let addr: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT);
 
     recv_socket.bind(&addr.into()).unwrap();
+    recv_socket.set_multicast_loop_v4(true).unwrap();
 
     recv_socket.join_multicast_v4(&Ipv4Addr::new(239, 255, 0, 1), &Ipv4Addr::new(0, 0, 0, 0))
                 .unwrap();
@@ -3506,7 +3512,7 @@ fn test_discovery_packet_transmit_format() {
 
     assert_eq!(discovery_packet.len(), DISCOVERY_PACKET_LENGTH_EXPECTED, "Example discovery packet length doesn't match expected");
 
-    let ip: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT + 1);
+    let ip: SocketAddr = SocketAddr::new(IpAddr::V4(TEST_NETWORK_INTERFACE_IPV4[0].parse().unwrap()), ACN_SDT_MULTICAST_PORT + 1);
 
     // Creates the source.
     let mut source = SacnSource::with_cid_ip(&str::from_utf8(&SOURCE_NAME).unwrap(), Uuid::from_bytes(CID), ip).unwrap();
@@ -3677,8 +3683,11 @@ fn test_track_data_packet_seq_numbers() {
 
     // Create receiver socket.
     let mut recv_socket = Socket::new(Domain::IPV4, Type::DGRAM, None).unwrap();
+    recv_socket.set_multicast_loop_v4(true).unwrap();
     let addr: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT);
     recv_socket.bind(&addr.into()).unwrap();
+    recv_socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+    sleep(Duration::from_secs(1));
 
     // Join the multicast groups for each of the universes.
     for u in UNIVERSES.iter() {
@@ -3690,15 +3699,17 @@ fn test_track_data_packet_seq_numbers() {
     }
 
     for s in START_SEQ_NUM .. START_SEQ_NUM + DATA_PACKETS_TO_SEND {
+        if s.is_multiple_of(5) {print!("."); let _ = io::stdout().flush();}
         let expected_seq_num: u8 = (s % 256).try_into().unwrap();
         for u in UNIVERSES.iter() {
             let expected_packet = generate_data_packet_raw(CID, *u, source_name.clone(), PRIORITY, expected_seq_num, OPTIONS, dmx_data.clone());
             source.send(&[*u], &dmx_data, Some(PRIORITY), None, None).unwrap();
-
+            sleep(Duration::from_millis(10));
             let mut recv_buf = [0; 1024];
             let amt = recv_socket.read(&mut recv_buf).unwrap();
 
             assert_eq!(&recv_buf[0..amt], &expected_packet[..]);
+            sleep(Duration::from_millis(3));
         }
     }
 }
@@ -3746,6 +3757,7 @@ fn test_track_sync_packet_seq_numbers() {
 
     // Create receiver socket.
     let mut recv_socket = Socket::new(Domain::IPV4, Type::DGRAM, None).unwrap();
+    recv_socket.set_multicast_loop_v4(true).unwrap();
     let addr: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), ACN_SDT_MULTICAST_PORT);
     recv_socket.bind(&addr.into()).unwrap();
 
@@ -3759,6 +3771,7 @@ fn test_track_sync_packet_seq_numbers() {
     }
 
     for s in START_SEQ_NUM .. START_SEQ_NUM + SYNC_PACKETS_TO_SEND {
+        if s.is_multiple_of(5) {print!("."); let _ = io::stdout().flush();}
         let expected_seq_num: u8 = (s % 256).try_into().unwrap();
         for a in SYNC_ADDRESSES.iter() {
             let expected_packet = generate_sync_packet_raw(CID, *a, expected_seq_num);

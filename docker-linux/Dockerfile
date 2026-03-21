@@ -17,6 +17,7 @@ COPY src/ src/
 RUN cargo test --no-run --locked
 
 COPY docker-linux/run_tests.sh run_tests.sh
+COPY docker-linux/run_tests_v6.sh run_tests_v6.sh
 RUN chmod +x run_tests.sh
 
 # RUN cargo test
