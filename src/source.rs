@@ -1503,7 +1503,14 @@ impl SacnSourceCore {
     /// the multicast address for the given universe based on the socket's IP family.
     fn resolve_dst(&self, dst_ip: &Option<SocketAddr>, universe: u16) -> Result<SendDestination> {
         Ok(if let Some(addr) = dst_ip {
-            SendDestination::Unicast { addr: (*addr) }
+            SendDestination::Unicast {
+                netint_os_idx: self
+                    .universe_states
+                    .get(&universe)
+                    .expect("Universe_allowed() checked before resolve_dst()")
+                    .netint_idx,
+                addr: (*addr),
+            }
         } else {
             let s = match self.ip_version {
                 IpVersion::V4 => universe_to_ipv4_multicast_addr(universe)?,

@@ -19,4 +19,5 @@ ip a show
 # EOF
 # sysctl -p
 
-cargo test --test ipv6_tests -- --ignored --test-threads=1
+# cargo test --test ipv6_tests -- --ignored --test-threads=1
+cargo test test_send_recv_across_universe_unicast_ipv6 -- --ignored --test-threads=1 --nocapture

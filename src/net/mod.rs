@@ -78,6 +78,8 @@ pub enum SendDestination {
     },
     /// Send directly to a unicast destination.
     Unicast {
+        /// The OS interface index identifying which socket to send from.
+        netint_os_idx: u32,
         /// The destination address and port.
         addr: SocketAddr,
     },
@@ -158,7 +160,7 @@ pub trait SacnSourceNet: Send {
     ///
     /// # Errors
     /// Returns `Io` if the send fails.
-    fn send_ucast(&self, dst: SocketAddr, bytes: &[u8]) -> Result<()>;
+    fn send_ucast(&self, idx: u32, dst: SocketAddr, bytes: &[u8]) -> Result<()>;
 
     // -----------------------------------------------------------------------
     // Batched dispatch (overridable)
@@ -182,7 +184,10 @@ pub trait SacnSourceNet: Send {
                     netint_os_idx,
                     multicast_addr,
                 } => self.send_mcast(*netint_os_idx, *multicast_addr, &s.bytes)?,
-                SendDestination::Unicast { addr } => self.send_ucast(*addr, &s.bytes)?,
+                SendDestination::Unicast {
+                    netint_os_idx,
+                    addr,
+                } => self.send_ucast(*netint_os_idx, *addr, &s.bytes)?,
             }
         }
         Ok(())

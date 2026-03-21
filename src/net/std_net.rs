@@ -61,7 +61,7 @@ pub struct StdSourceNet {
     mcast_sockets: HashMap<u32, Socket>,
 
     /// Shared unicast send socket.
-    ucast_socket: Socket,
+    // ucast_socket: Socket,
 
     default_netint_idx: u32,
 
@@ -79,12 +79,13 @@ impl StdSourceNet {
     /// `Io`: Returned if any socket cannot be created, configured, or bound.
     ///
     /// `UnsupportedIpVersion`: Returned if `addr` is not IPv4.
-    pub(crate) fn new(addr: SocketAddr) -> Result<Self> {
+    pub fn new(addr: SocketAddr) -> Result<Self> {
         let family = match addr.ip() {
             IpAddr::V4(_) => IpVersion::V4,
             IpAddr::V6(_) => IpVersion::V6,
         };
-        // Enumerate non-loopback interfaces for the chosen IP family.
+
+        // Enumerate all interfaces for the chosen IP family.
         let netints = enumerate_netints(family)?;
 
         let default_netint_idx = if addr.ip().is_unspecified() {
@@ -135,12 +136,12 @@ impl StdSourceNet {
             netints.iter().map(|n| (n.addr, n.os_idx)).collect();
 
         // Shared unicast socket bound to the caller-supplied address.
-        let ucast_socket = make_ucast_socket(addr)?;
+        // let ucast_socket = make_ucast_socket(addr)?;
 
         let net = StdSourceNet {
             netint_index,
             mcast_sockets,
-            ucast_socket,
+            // ucast_socket,
             default_netint_idx,
             family,
         };
@@ -195,8 +196,14 @@ impl SacnSourceNet for StdSourceNet {
         Ok(())
     }
 
-    fn send_ucast(&self, dst: SocketAddr, bytes: &[u8]) -> Result<()> {
-        self.ucast_socket
+    fn send_ucast(&self, idx: u32, dst: SocketAddr, bytes: &[u8]) -> Result<()> {
+        let socket = self
+            .mcast_sockets
+            .get(&idx)
+            .or_else(|| self.mcast_sockets.get(&0))
+            .expect("mcast_sockets always has at least one entry at index 0");
+
+        socket
             .send_to(bytes, &dst.into())
             .map_err(|e| std::io::Error::new(e.kind(), "StdSourceNet: unicast send_to failed"))?;
         Ok(())
@@ -220,11 +227,13 @@ impl SacnSourceNet for StdSourceNet {
     }
 
     fn ttl(&self) -> Result<u32> {
-        self.family.unicast_ttl(&self.ucast_socket)
+        // self.family.unicast_ttl(&self.ucast_socket)
+        Ok(1)
     }
 
     fn set_ttl(&self, ttl: u32) -> Result<()> {
-        self.family.set_unicast_ttl(&self.ucast_socket, ttl)
+        // self.family.set_unicast_ttl(&self.ucast_socket, ttl)
+        Ok(())
     }
 
     fn set_multicast_loop(&self, val: bool) -> Result<()> {
@@ -410,7 +419,7 @@ fn make_ucast_socket(addr: SocketAddr) -> Result<Socket> {
     socket.set_reuse_port(true)?;
     socket.set_reuse_address(true)?;
 
-    // socket.bind(&addr.into())?; // TODO: check this bind on windows, linux, macos
+    socket.bind(&addr.into())?; // TODO: check this bind on windows, linux, macos
     println!("- socket created");
     Ok(socket)
 }
